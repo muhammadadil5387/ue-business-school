@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { GraduationCap, Shield, User, ArrowRight, Lock, Mail, AlertCircle } from 'lucide-react';
-import { setCurrentUser, getProfiles } from '@/lib/store';
+import { setCurrentUser, getProfiles, getCurrentUser } from '@/lib/store';
 import { isSupabaseConfigured, createClient } from '@/lib/supabase/client';
 
 export default function LoginPage() {
@@ -13,6 +13,14 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const user = getCurrentUser();
+    if (user) {
+      if (user.role === 'admin') router.replace('/admin/dashboard');
+      else router.replace('/teacher/dashboard');
+    }
+  }, [router]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
