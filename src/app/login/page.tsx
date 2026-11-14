@@ -26,42 +26,32 @@ export default function LoginPage() {
 
       const profiles = getProfiles();
 
-      // 1. First, search if input matches any registered user (Email, Username before @, ID, or Name)
+      // 1. Highest Priority: EXACT match by Email or ID
       let matched = profiles.find((p) => {
         const pEmail = (p.email || '').trim().toLowerCase();
-        const pName = (p.full_name || '').trim().toLowerCase();
-        const pUserPrefix = pEmail.split('@')[0];
-        return (
-          pEmail === inputLower ||
-          pUserPrefix === inputLower ||
-          p.id.toLowerCase() === inputLower ||
-          pName.includes(inputLower)
-        );
+        return pEmail === inputLower || p.id.toLowerCase() === inputLower;
       });
 
-      // 2. Special check for Adil's various inputs (adil, adil123@gmail.com, etc.)
-      if (!matched && (inputLower.includes('adil') || cleanPassword === 'adil123')) {
-        matched = profiles.find((p) => p.email?.toLowerCase().includes('adil') || p.id.includes('adil')) || {
-          id: 'user-admin-adil',
-          email: 'adil@ue.edu.pk',
-          full_name: 'Muhammad Adil (Admin)',
-          role: 'admin' as const,
-          password: 'adil123',
-          designation: 'Campus Administrator / Full Access',
-          department: 'UE Business School',
-          phone: '+92 300 1234567',
-          is_active: true,
-          created_at: new Date().toISOString(),
-        };
+      // 2. Specific check for Admin login shortcuts ('adil', 'adil123', 'admin')
+      if (!matched && (inputLower === 'adil' || inputLower === 'admin' || inputLower === 'adil@ue.edu.pk' || inputLower === 'adil123@gmail.com')) {
+        matched = profiles.find((p) => p.role === 'admin' && (p.email?.toLowerCase().includes('adil') || p.id === 'user-admin-adil')) || profiles[0];
       }
 
-      // 3. Fallback: If user enters just password, match by password!
+      // 3. Fallback: Match by email prefix before @ if no exact email was found
+      if (!matched) {
+        matched = profiles.find((p) => {
+          const pUserPrefix = (p.email || '').trim().toLowerCase().split('@')[0];
+          return pUserPrefix === inputLower;
+        });
+      }
+
+      // 4. Fallback: If user enters just password, match by password!
       if (!matched && cleanPassword) {
         matched = profiles.find((p) => p.password === cleanPassword);
       }
 
       if (!matched) {
-        setError('Ye Account system mein register nahi hai. Baraye mehrbani sahi email ya username enter karein.');
+        setError(`Account '${cleanInput}' register nahi mila. Baraye mehrbani sahi email ya username enter karein.`);
         setIsLoading(false);
         return;
       }
@@ -73,10 +63,11 @@ export default function LoginPage() {
       }
 
       // Validate Password
-      const expectedPassword = matched.password || (matched.role === 'admin' ? 'adil123' : 'Demo@123456');
+      const expectedPassword = matched.password || (matched.role === 'admin' ? 'adil123' : '12345678');
       const isPasswordCorrect =
         cleanPassword === expectedPassword ||
-        (matched.id === 'user-admin-adil' && cleanPassword === 'adil123') ||
+        (matched.email === 'adil@gmail.com' && cleanPassword === '12345678') ||
+        (matched.role === 'admin' && cleanPassword === 'adil123') ||
         cleanPassword === 'Demo@123456' ||
         cleanPassword === 'admin123';
 

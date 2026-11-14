@@ -125,7 +125,7 @@ export function switchRole(role: 'admin' | 'teacher'): Profile {
 export function getProfiles(): Profile[] {
   let stored = getStored<Profile[]>('profiles', INITIAL_PROFILES);
   // Ensure the adil admin account is present with active admin role and password adil123
-  const adilProfile = stored.find(
+  let adilProfile = stored.find(
     (p) =>
       p.email?.toLowerCase() === 'adil@ue.edu.pk' ||
       p.email?.toLowerCase() === 'adil123@gmail.com' ||
@@ -145,21 +145,29 @@ export function getProfiles(): Profile[] {
       created_at: new Date().toISOString(),
     };
     stored = [newAdil, ...stored];
-    setStored('profiles', stored);
-  } else if (
-    adilProfile.role !== 'admin' ||
-    !adilProfile.is_active ||
-    adilProfile.password !== 'adil123' ||
-    adilProfile.full_name?.includes('(Admin)') ||
-    !adilProfile.email?.toLowerCase().includes('adil')
-  ) {
-    stored = stored.map((p) =>
-      p.id === adilProfile.id || p.email?.toLowerCase().includes('adil')
-        ? { ...p, full_name: 'Muhammad Adil', role: 'admin' as const, is_active: true, password: 'adil123' }
-        : p
-    );
+    adilProfile = newAdil;
     setStored('profiles', stored);
   }
+
+  // Ensure adil@gmail.com teacher account exists
+  const teacherAdil = stored.find((p) => p.email?.toLowerCase() === 'adil@gmail.com');
+  if (!teacherAdil) {
+    const newTeacher: Profile = {
+      id: 'user-teacher-adil',
+      email: 'adil@gmail.com',
+      full_name: 'Muhammad Adil',
+      role: 'teacher',
+      password: '12345678',
+      designation: 'Faculty Member',
+      department: 'UE Business School',
+      phone: '+92 300 1234567',
+      is_active: true,
+      created_at: new Date().toISOString(),
+    };
+    stored = [...stored, newTeacher];
+    setStored('profiles', stored);
+  }
+
   return stored;
 }
 

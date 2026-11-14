@@ -28,6 +28,18 @@ export const INITIAL_PROFILES: Profile[] = [
     created_at: '2026-08-01T08:00:00Z',
   },
   {
+    id: 'user-teacher-adil',
+    email: 'adil@gmail.com',
+    full_name: 'Muhammad Adil',
+    role: 'teacher',
+    password: '12345678',
+    designation: 'Faculty Member',
+    department: 'UE Business School',
+    phone: '+92 300 1234567',
+    is_active: true,
+    created_at: '2026-08-01T08:30:00Z',
+  },
+  {
     id: 'user-admin-001',
     email: 'admin@ue.edu.pk',
     full_name: 'Dr. Muhammad Tariq (Director)',
