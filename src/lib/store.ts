@@ -77,7 +77,7 @@ export function triggerDiskBackup(): void {
   }, 1200);
 }
 
-function getStored<T>(key: string, fallback: T): T {
+export function getStored<T>(key: string, fallback: T): T {
   if (typeof window === 'undefined') return fallback;
   try {
     const item = localStorage.getItem(STORAGE_KEY_PREFIX + key);
@@ -87,7 +87,7 @@ function getStored<T>(key: string, fallback: T): T {
   }
 }
 
-function setStored<T>(key: string, value: T): void {
+export function setStored<T>(key: string, value: T): void {
   if (typeof window === 'undefined') return;
   try {
     localStorage.setItem(STORAGE_KEY_PREFIX + key, JSON.stringify(value));
@@ -895,6 +895,27 @@ const INITIAL_TEACHER_COURSES: TeacherCourse[] = [
     semester_number: 2, academic_year: '2026', term: 'Spring',
     created_at: '2026-08-01T00:00:00Z',
   },
+  {
+    id: 'tc-ali-001', teacher_id: 'user-teacher-ali',
+    subject_name: 'Introduction to Business', subject_code: 'BUSA1111',
+    program: 'BBA', class_section: 'BBA 1st Morning A',
+    semester_number: 1, academic_year: '2026', term: 'Fall',
+    created_at: '2026-08-01T00:00:00Z',
+  },
+  {
+    id: 'tc-ali-002', teacher_id: 'user-teacher-ali',
+    subject_name: 'Financial Accounting', subject_code: 'ACC-201',
+    program: 'BBA', class_section: 'BBA 2nd Morning B',
+    semester_number: 2, academic_year: '2026', term: 'Fall',
+    created_at: '2026-08-01T00:00:00Z',
+  },
+  {
+    id: 'tc-adil-001', teacher_id: 'user-teacher-adil',
+    subject_name: 'Quantitative Methods & Decisions', subject_code: 'BUSA 7136',
+    program: 'MBA', class_section: 'MBA 1st Evening A',
+    semester_number: 1, academic_year: '2026', term: 'Fall',
+    created_at: '2026-08-01T00:00:00Z',
+  },
 ];
 
 function buildDefaultCategories(teacherCourseId: string, section: 'midterm' | 'final'): AcademicCategory[] {
@@ -913,8 +934,28 @@ function buildDefaultCategories(teacherCourseId: string, section: 'midterm' | 'f
 // Teacher Courses
 export function getTeacherCourses(teacherId?: string): TeacherCourse[] {
   const courses = getStored<TeacherCourse[]>('teacher_courses', INITIAL_TEACHER_COURSES);
-  if (teacherId) return courses.filter((c) => c.teacher_id === teacherId);
-  return courses;
+  if (!teacherId) return courses;
+
+  // Resolve all alias IDs for this teacher (match by id, email, or exact full_name)
+  const profiles = getProfiles();
+  const target = profiles.find((p) => p.id === teacherId || (p.email && p.email.toLowerCase() === teacherId.toLowerCase()));
+
+  const matchedIds = new Set<string>([teacherId]);
+  if (target) {
+    matchedIds.add(target.id);
+    if (target.email) {
+      profiles
+        .filter((p) => (p.email || '').trim().toLowerCase() === target.email.trim().toLowerCase())
+        .forEach((p) => matchedIds.add(p.id));
+    }
+    if (target.full_name) {
+      profiles
+        .filter((p) => (p.full_name || '').trim().toLowerCase() === target.full_name.trim().toLowerCase())
+        .forEach((p) => matchedIds.add(p.id));
+    }
+  }
+
+  return courses.filter((c) => matchedIds.has(c.teacher_id));
 }
 
 export function getTeacherCourseById(id: string): TeacherCourse | undefined {
@@ -931,6 +972,7 @@ export function createTeacherCourse(data: Omit<TeacherCourse, 'id' | 'created_at
   setStored('teacher_courses', [newCourse, ...courses]);
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new Event('ue-courses-change'));
+    window.dispatchEvent(new Event('storage'));
   }
   logAudit('CREATE_TEACHER_COURSE', 'teacher_course', newCourse.id, {
     subject: newCourse.subject_name,

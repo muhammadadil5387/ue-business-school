@@ -22,6 +22,7 @@ import {
 
 const ADMIN_NAV_ITEMS = [
   { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/admin/reporting', label: 'Submissions & Moderation', icon: FileCheck2 },
   { href: '/admin/faculty', label: 'Faculty Accounts & Login', icon: Users },
   { href: '/admin/academic', label: 'Faculty Academic Records', icon: FolderOpen },
   { href: '/admin/programs', label: 'Programs (BBA / BS / MBA)', icon: GraduationCap },
