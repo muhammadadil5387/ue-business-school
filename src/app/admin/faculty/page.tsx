@@ -20,6 +20,7 @@ import {
   Edit2,
   Trash2,
   User,
+  LogIn,
 } from 'lucide-react';
 import {
   getProfiles,
@@ -27,6 +28,7 @@ import {
   updateFaculty,
   deleteFaculty,
   toggleFacultyStatus,
+  setCurrentUser,
 } from '@/lib/store';
 import { Profile } from '@/lib/types';
 import { formatDate } from '@/lib/utils';
@@ -216,6 +218,15 @@ export default function FacultyManagementPage() {
     setTimeout(() => setCopiedId(null), 2500);
   };
 
+  const handleLoginAs = (faculty: Profile) => {
+    setCurrentUser(faculty);
+    if (faculty.role === 'admin') {
+      window.location.href = '/admin/dashboard';
+    } else {
+      window.location.href = '/teacher/dashboard';
+    }
+  };
+
   const filtered = profiles.filter((p) => {
     const matchesSearch =
       p.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -374,6 +385,17 @@ export default function FacultyManagementPage() {
 
                     <td className="py-3.5 px-4 text-right">
                       <div className="flex items-center justify-end gap-1.5">
+                        {/* 1-Click Login As Button */}
+                        <button
+                          type="button"
+                          onClick={() => handleLoginAs(faculty)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-blue-300 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold transition shadow-2xs"
+                          title={`Log in to portal as ${faculty.full_name}`}
+                        >
+                          <LogIn className="w-3.5 h-3.5 text-blue-600" />
+                          <span>Login As</span>
+                        </button>
+
                         {/* Copy details */}
                         <button
                           type="button"

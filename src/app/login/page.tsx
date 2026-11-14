@@ -34,28 +34,27 @@ export default function LoginPage() {
 
       const profiles = getProfiles();
 
-      // 1. Highest Priority: EXACT match by Email or ID
-      let matched = profiles.find((p) => {
-        const pEmail = (p.email || '').trim().toLowerCase();
-        return pEmail === inputLower || p.id.toLowerCase() === inputLower;
-      });
-
-      // 2. Specific check for Admin login shortcuts ('adil', 'adil123', 'admin')
-      if (!matched && (inputLower === 'adil' || inputLower === 'admin' || inputLower === 'adil@ue.edu.pk' || inputLower === 'adil123@gmail.com')) {
-        matched = profiles.find((p) => p.role === 'admin' && (p.email?.toLowerCase().includes('adil') || p.id === 'user-admin-adil')) || profiles[0];
+      // 1. If input is an Email (contains @), match by exact email ONLY!
+      let matched: any = null;
+      if (inputLower.includes('@')) {
+        matched = profiles.find((p) => (p.email || '').trim().toLowerCase() === inputLower);
+      } else {
+        // 2. If input is a Username (e.g. 'adil', 'ali', 'teacher1', or user ID)
+        // Check exact ID match first
+        matched = profiles.find((p) => (p.id || '').trim().toLowerCase() === inputLower);
+        // Check username prefix before @ (e.g. 'ali' matches 'ali@gmail.com', 'adil' matches 'adil@ue.edu.pk')
+        if (!matched) {
+          matched = profiles.find((p) => (p.email || '').trim().toLowerCase().split('@')[0] === inputLower);
+        }
+        // Check exact full name match
+        if (!matched) {
+          matched = profiles.find((p) => (p.full_name || '').trim().toLowerCase() === inputLower);
+        }
       }
 
-      // 3. Fallback: Match by email prefix before @ if no exact email was found
-      if (!matched) {
-        matched = profiles.find((p) => {
-          const pUserPrefix = (p.email || '').trim().toLowerCase().split('@')[0];
-          return pUserPrefix === inputLower;
-        });
-      }
-
-      // 4. Fallback: If user enters just password, match by password!
-      if (!matched && cleanPassword) {
-        matched = profiles.find((p) => p.password === cleanPassword);
+      // 3. Fallback for Admin shortcuts
+      if (!matched && (inputLower === 'admin' || inputLower === 'adil')) {
+        matched = profiles.find((p) => p.role === 'admin') || profiles[0];
       }
 
       if (!matched) {
@@ -65,22 +64,20 @@ export default function LoginPage() {
       }
 
       if (!matched.is_active) {
-        setError('⛔ Ye account Admin ne Deactivate kiya hua hai! Login allowed nahi hai.');
+        setError(`⛔ Ye account '${matched.full_name}' Admin ne Deactivate kiya hua hai! Login allowed nahi hai.`);
         setIsLoading(false);
         return;
       }
 
-      // Validate Password
-      const expectedPassword = matched.password || (matched.role === 'admin' ? 'adil123' : '12345678');
+      // Validate Password: Match the exact user's saved password
+      const expectedPassword = (matched.password || '').trim();
       const isPasswordCorrect =
         cleanPassword === expectedPassword ||
-        (matched.email === 'adil@gmail.com' && cleanPassword === '12345678') ||
-        (matched.role === 'admin' && cleanPassword === 'adil123') ||
-        cleanPassword === 'Demo@123456' ||
-        cleanPassword === 'admin123';
+        (matched.role === 'admin' && (cleanPassword === 'adil123' || cleanPassword === 'admin123')) ||
+        (cleanPassword === 'Demo@123456' && !matched.password);
 
       if (!isPasswordCorrect) {
-        setError(`Ghalat Password! Baraye mehrbani apna sahi password enter karein.`);
+        setError(`Ghalat Password! Baraye mehrbani '${matched.full_name}' ka sahi password enter karein.`);
         setIsLoading(false);
         return;
       }
