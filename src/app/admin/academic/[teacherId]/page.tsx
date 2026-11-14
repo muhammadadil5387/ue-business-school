@@ -91,21 +91,22 @@ export default function TeacherAcademicPage({ params }: PageProps) {
             const sessionSemesters = semesters.filter((sem) => sem.session_id === sess.id);
 
             // Compute courses for this session
-            const sessCourses = courses.filter(
-              (c) =>
-                c.academic_year === sess.start_year.toString() ||
-                c.academic_year === sess.end_year.toString() ||
-                c.academic_year === sess.name
-            );
+            const sessCourses = courses.filter((c) => {
+              if (!c.academic_year) return true;
+              const y = c.academic_year.toString();
+              return (
+                y === sess.start_year.toString() ||
+                y === sess.end_year.toString() ||
+                y === sess.name ||
+                y.includes(sess.start_year.toString()) ||
+                sess.name.includes(y)
+              );
+            });
 
-            // Terms to display: only configured semesters for this session
+            // Terms to display: configured semesters for this session
             const termsToDisplay = sessionSemesters.map((sem) => {
               const semCourses = sessCourses.filter(
-                (c) =>
-                  (c.academic_year === sem.term_year.toString() ||
-                    c.academic_year === sess.start_year.toString() ||
-                    c.academic_year === sess.name) &&
-                  c.term === sem.term
+                (c) => !c.term || c.term.toLowerCase() === sem.term.toLowerCase()
               );
               return {
                 semId: sem.id,

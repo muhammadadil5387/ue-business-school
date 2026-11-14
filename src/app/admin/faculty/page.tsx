@@ -212,7 +212,11 @@ export default function FacultyManagementPage() {
   };
 
   const handleCopyLoginInfo = (faculty: Profile) => {
-    const text = `UE Business School Portal Login:\nLink: http://localhost:3000/login\nEmail: ${faculty.email}\nPassword: ${faculty.password || 'teacher123'}\nRole: ${faculty.role.toUpperCase()}`;
+    const origin =
+      typeof window !== 'undefined' && window.location.origin
+        ? window.location.origin
+        : 'https://uebusinessschool.vercel.app';
+    const text = `UE Business School Portal Login:\nLink: ${origin}/login\nEmail: ${faculty.email}\nPassword: ${faculty.password || 'teacher123'}\nRole: ${faculty.role.toUpperCase()}`;
     navigator.clipboard.writeText(text);
     setCopiedId(faculty.id);
     setTimeout(() => setCopiedId(null), 2500);

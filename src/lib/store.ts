@@ -225,6 +225,25 @@ export function getProfiles(): Profile[] {
     setStored('profiles', stored);
   }
 
+  // Ensure aliraza@gmail.com teacher account exists
+  const teacherAliRaza = stored.find((p) => p.email?.toLowerCase() === 'aliraza@gmail.com');
+  if (!teacherAliRaza) {
+    const newAliRaza: Profile = {
+      id: 'user-teacher-aliraza',
+      email: 'aliraza@gmail.com',
+      full_name: 'Ali Raza',
+      role: 'teacher',
+      password: '1234',
+      designation: 'Faculty Member',
+      department: 'UE Business School',
+      phone: '+92 300 1234567',
+      is_active: true,
+      created_at: new Date().toISOString(),
+    };
+    stored = [...stored, newAliRaza];
+    setStored('profiles', stored);
+  }
+
   return stored;
 }
 

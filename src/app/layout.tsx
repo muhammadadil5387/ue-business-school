@@ -8,6 +8,7 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://uebusinessschool.vercel.app'),
   title: 'UE Business School – Faculty & Academic Reporting Portal',
   description:
     'Official academic reporting, duty assignment and moderation portal for University of Education, Faisalabad Campus.',

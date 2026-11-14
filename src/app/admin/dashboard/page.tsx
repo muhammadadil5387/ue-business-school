@@ -22,7 +22,11 @@ import {
   getAssignments,
   getAssignmentTeachers,
   getSubmissions,
+  getTeacherCourseById,
+  getStored,
 } from '@/lib/store';
+import { CourseCoverageReport, AcademicFile } from '@/lib/types';
+import { INITIAL_COURSE_COVERAGE_REPORTS } from '@/lib/mock-data';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { formatDate } from '@/lib/utils';
 
@@ -37,7 +41,7 @@ export default function AdminDashboardPage() {
   const [awaitingReviewCount, setAwaitingReviewCount] = useState(0);
   const [recentSubmissions, setRecentSubmissions] = useState<any[]>([]);
 
-  useEffect(() => {
+  const refresh = () => {
     const profiles = getProfiles();
     const teachers = profiles.filter((p) => p.role === 'teacher');
     setFacultyCount(teachers.length);
@@ -56,12 +60,92 @@ export default function AdminDashboardPage() {
     setSubmittedCount(assignmentTeachers.filter((at) => at.status === 'submitted').length);
     setOverdueCount(assignmentTeachers.filter((at) => at.status === 'overdue').length);
 
-    const submissions = getSubmissions();
-    const awaiting = submissions.filter(
+    // 1. Duties submissions
+    const dutyItems = getSubmissions().map((subm) => ({
+      id: subm.id,
+      title: subm.assignment?.title || 'Faculty Duty Assignment',
+      category: 'Duty Assignment',
+      teacherName: subm.teacher?.full_name || 'Faculty Member',
+      teacherEmail: subm.teacher?.email || '',
+      submittedAt: subm.submitted_at || new Date().toISOString(),
+      filesDesc: `${subm.files?.length || 0} files`,
+      status: subm.status,
+      link: `/admin/review/${subm.id}`,
+    }));
+
+    // 2. Course Coverage Reports submitted by teachers (e.g. Ali)
+    const coverageReports = getStored<CourseCoverageReport[]>(
+      'course_coverage_reports',
+      INITIAL_COURSE_COVERAGE_REPORTS
+    );
+    const coverageItems = coverageReports
+      .filter((r) => r.is_submitted || r.status !== 'not_submitted')
+      .map((r) => {
+        const teacher = profiles.find((p) => p.id === r.teacher_id);
+        const course = getTeacherCourseById(r.teacher_course_id);
+        const tId = teacher?.id || r.teacher_id || 'teacher';
+        const y = course?.academic_year || '2026';
+        const trm = course?.term || 'Fall';
+        return {
+          id: r.id,
+          title: `Course Coverage Report: ${r.course_code || course?.subject_code || ''} ${r.course_name || course?.subject_name || ''} (${r.section || course?.class_section || ''})`,
+          category: 'Course Coverage Report',
+          teacherName: teacher?.full_name || r.faculty_name || 'Faculty Member',
+          teacherEmail: teacher?.email || '',
+          submittedAt: r.submitted_at || r.last_saved_at || new Date().toISOString(),
+          filesDesc: '16 Weeks Outline',
+          status: r.status,
+          link: `/admin/academic/${tId}/${y}/${trm}/${r.teacher_course_id}/coverage`,
+        };
+      });
+
+    // 3. Academic Dossiers (Midterm & Final)
+    const academicFiles = getStored<AcademicFile[]>('academic_files', []);
+    const academicItems = academicFiles
+      .filter((f) => f.status === 'submitted' || f.status === 'under_review')
+      .map((f) => {
+        const course = getTeacherCourseById(f.teacher_course_id);
+        const teacher = profiles.find((p) => p.id === course?.teacher_id);
+        const tId = teacher?.id || course?.teacher_id || 'teacher';
+        const y = course?.academic_year || '2026';
+        const trm = course?.term || 'Fall';
+        const isMidterm = !f.category_id.includes('final');
+        const sectionName = isMidterm ? 'midterm' : 'final';
+        return {
+          id: f.id,
+          title: `${isMidterm ? 'Midterm' : 'Final'} Dossier: ${f.file_name} (${course?.subject_code || ''})`,
+          category: `${isMidterm ? 'Midterm' : 'Final'} Dossier`,
+          teacherName: teacher?.full_name || 'Faculty Member',
+          teacherEmail: teacher?.email || '',
+          submittedAt: f.uploaded_at || new Date().toISOString(),
+          filesDesc: '1 File Uploaded',
+          status: f.status,
+          link: `/admin/academic/${tId}/${y}/${trm}/${f.teacher_course_id}/${sectionName}`,
+        };
+      });
+
+    const combined = [...dutyItems, ...coverageItems, ...academicItems].sort(
+      (a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()
+    );
+
+    const awaiting = combined.filter(
       (s) => s.status === 'submitted' || s.status === 'under_review'
     );
     setAwaitingReviewCount(awaiting.length);
-    setRecentSubmissions(submissions.slice(0, 5));
+    setRecentSubmissions(combined.slice(0, 8));
+  };
+
+  useEffect(() => {
+    refresh();
+
+    const handleSync = () => refresh();
+    window.addEventListener('ue-courses-change', handleSync);
+    window.addEventListener('storage', handleSync);
+
+    return () => {
+      window.removeEventListener('ue-courses-change', handleSync);
+      window.removeEventListener('storage', handleSync);
+    };
   }, []);
 
   return (
@@ -206,10 +290,10 @@ export default function AdminDashboardPage() {
             </p>
           </div>
           <Link
-            href="/admin/submissions"
+            href="/admin/reporting"
             className="text-xs font-semibold text-ue-navy hover:underline inline-flex items-center gap-1"
           >
-            View All ({recentSubmissions.length})
+            Open All Submissions ({recentSubmissions.length})
             <ArrowRight className="w-3.5 h-3.5" />
           </Link>
         </div>
@@ -218,10 +302,10 @@ export default function AdminDashboardPage() {
           <table className="w-full text-left text-xs">
             <thead className="bg-slate-50 text-slate-600 font-semibold uppercase tracking-wider border-b border-slate-200">
               <tr>
-                <th className="py-3 px-4">Duty Title</th>
+                <th className="py-3 px-4">Title &amp; Type</th>
                 <th className="py-3 px-4">Faculty Member</th>
                 <th className="py-3 px-4">Submitted Date</th>
-                <th className="py-3 px-4">Files Attached</th>
+                <th className="py-3 px-4">Details</th>
                 <th className="py-3 px-4">Status</th>
                 <th className="py-3 px-4 text-right">Action</th>
               </tr>
@@ -229,31 +313,29 @@ export default function AdminDashboardPage() {
             <tbody className="divide-y divide-slate-200 text-slate-700">
               {recentSubmissions.map((subm) => (
                 <tr key={subm.id} className="hover:bg-slate-50 transition">
-                  <td className="py-3 px-4 font-semibold text-slate-900">
-                    {subm.assignment?.title || 'Course Duty Submission'}
+                  <td className="py-3 px-4">
+                    <div className="font-bold text-slate-900">{subm.title}</div>
+                    <span className="inline-block mt-0.5 px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+                      {subm.category}
+                    </span>
                   </td>
                   <td className="py-3 px-4">
-                    <div className="font-medium text-slate-900">
-                      {subm.teacher?.full_name || 'Faculty Member'}
-                    </div>
-                    <div className="text-[11px] text-slate-500">{subm.teacher?.email}</div>
+                    <div className="font-medium text-slate-900">{subm.teacherName}</div>
+                    <div className="text-[11px] text-slate-500">{subm.teacherEmail}</div>
                   </td>
-                  <td className="py-3 px-4">{formatDate(subm.submitted_at)}</td>
+                  <td className="py-3 px-4">{formatDate(subm.submittedAt)}</td>
                   <td className="py-3 px-4">
-                    <span className="font-semibold text-slate-900">
-                      {subm.files?.length || 0}
-                    </span>{' '}
-                    files
+                    <span className="font-semibold text-slate-900">{subm.filesDesc}</span>
                   </td>
                   <td className="py-3 px-4">
                     <StatusBadge status={subm.status} />
                   </td>
                   <td className="py-3 px-4 text-right">
                     <Link
-                      href={`/admin/review/${subm.id}`}
-                      className="inline-flex items-center gap-1 px-3 py-1 rounded-md text-xs font-medium bg-ue-navy text-white hover:bg-ue-navy-light transition shadow-sm"
+                      href={subm.link}
+                      className="inline-flex items-center gap-1 px-3 py-1 rounded-md text-xs font-semibold bg-ue-navy text-white hover:bg-ue-navy-light transition shadow-xs"
                     >
-                      Review &amp; Approve
+                      Review &amp; Moderate
                     </Link>
                   </td>
                 </tr>

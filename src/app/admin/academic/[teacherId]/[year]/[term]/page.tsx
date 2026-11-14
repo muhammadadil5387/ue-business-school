@@ -36,10 +36,31 @@ export default function TermCoursesPage({ params }: PageProps) {
     const profiles = getProfiles();
     setTeacher(profiles.find((p) => p.id === teacherId) || null);
     const all = getTeacherCourses(teacherId);
-    setCourses(all.filter((c) => c.academic_year === year && c.term === term));
+    setCourses(
+      all.filter((c) => {
+        const yearMatches =
+          !c.academic_year ||
+          c.academic_year === year ||
+          c.academic_year.startsWith(year) ||
+          year.startsWith(c.academic_year);
+        const termMatches =
+          !c.term ||
+          c.term.toLowerCase() === term.toLowerCase();
+        return yearMatches && termMatches;
+      })
+    );
   };
 
-  useEffect(() => { refresh(); }, [teacherId, year, term]);
+  useEffect(() => {
+    refresh();
+    const handleSync = () => refresh();
+    window.addEventListener('ue-courses-change', handleSync);
+    window.addEventListener('storage', handleSync);
+    return () => {
+      window.removeEventListener('ue-courses-change', handleSync);
+      window.removeEventListener('storage', handleSync);
+    };
+  }, [teacherId, year, term]);
 
   const breadcrumbs: BreadcrumbItem[] = [
     { label: 'Faculty Academic Records', href: '/admin/academic' },
