@@ -101,15 +101,8 @@ function setStored<T>(key: string, value: T): void {
 // Current Session Management
 // -----------------------------------------------------------------------------
 export function getCurrentUser(): Profile | null {
-  if (typeof window === 'undefined') return INITIAL_PROFILES[0];
-  const user = getStored<Profile | null>('current_user', null);
-  if (!user) {
-    // Default to admin for convenient preview
-    const defaultUser = INITIAL_PROFILES[0];
-    setStored('current_user', defaultUser);
-    return defaultUser;
-  }
-  return user;
+  if (typeof window === 'undefined') return null;
+  return getStored<Profile | null>('current_user', null);
 }
 
 export function setCurrentUser(user: Profile | null): void {
