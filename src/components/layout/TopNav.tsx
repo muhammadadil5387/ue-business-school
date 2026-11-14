@@ -7,7 +7,6 @@ import {
   getCurrentUser,
   setCurrentUser,
   switchRole,
-  autoRestoreFromDiskIfEmpty,
   syncDatabaseToDisk,
   downloadBackupJSON,
 } from '@/lib/store';

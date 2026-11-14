@@ -187,6 +187,25 @@ export function getProfiles(): Profile[] {
     setStored('profiles', stored);
   }
 
+  // Ensure jawad123@gmail.com teacher account exists
+  const teacherJawad = stored.find((p) => p.email?.toLowerCase() === 'jawad123@gmail.com');
+  if (!teacherJawad) {
+    const newJawad: Profile = {
+      id: 'user-teacher-jawad',
+      email: 'jawad123@gmail.com',
+      full_name: 'Jawad',
+      role: 'teacher',
+      password: '12345678',
+      designation: 'Faculty Member',
+      department: 'UE Business School',
+      phone: '+92 300 1234567',
+      is_active: true,
+      created_at: new Date().toISOString(),
+    };
+    stored = [...stored, newJawad];
+    setStored('profiles', stored);
+  }
+
   return stored;
 }
 
