@@ -203,6 +203,9 @@ export function createFaculty(faculty: Omit<Profile, 'id' | 'created_at'>): Prof
   };
   const updated = [newProfile, ...profiles];
   setStored('profiles', updated);
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('ue-auth-change'));
+  }
   logAudit('CREATE_FACULTY', 'profile', newProfile.id, {
     name: newProfile.full_name,
     email: newProfile.email,
@@ -1608,7 +1611,6 @@ export const ALL_STORE_KEYS = [
   'assignment_teachers',
   'submissions',
   'audit_logs',
-  'current_user',
   'teacher_courses',
   'academic_categories',
   'academic_files',
@@ -1680,9 +1682,18 @@ export async function autoRestoreFromDiskIfEmpty(): Promise<boolean> {
     if (json.success && json.exists && json.data?.data) {
       const db = json.data.data;
       for (const [key, val] of Object.entries(db)) {
+        // Never overwrite active session
+        if (key === 'current_user') continue;
+        // Merge profiles safely without deleting newly created faculty
+        if (key === 'profiles') {
+          const currentProfiles = getStored<Profile[]>('profiles', []);
+          const existingEmails = new Set(currentProfiles.map((p) => (p.email || '').toLowerCase()));
+          const newFromBackup = (val as Profile[]).filter((p) => !existingEmails.has((p.email || '').toLowerCase()));
+          localStorage.setItem(STORAGE_KEY_PREFIX + 'profiles', JSON.stringify([...currentProfiles, ...newFromBackup]));
+          continue;
+        }
         localStorage.setItem(STORAGE_KEY_PREFIX + key, JSON.stringify(val));
       }
-      window.dispatchEvent(new Event('ue-auth-change'));
       return true;
     }
     return false;

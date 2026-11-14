@@ -41,9 +41,6 @@ export const TopNav: React.FC<TopNavProps> = ({ onToggleMobileSidebar }) => {
     const handler = () => setUser(getCurrentUser());
     window.addEventListener('ue-auth-change', handler);
 
-    // Auto restore if local storage was cleared
-    autoRestoreFromDiskIfEmpty();
-
     return () => window.removeEventListener('ue-auth-change', handler);
   }, []);
 
