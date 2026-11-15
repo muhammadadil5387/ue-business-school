@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   X,
   Download,
@@ -16,6 +16,7 @@ import {
   RotateCcw,
   AlertTriangle,
   Send,
+  Table,
 } from 'lucide-react';
 import { formatBytes, formatDateTime } from '@/lib/utils';
 import { AcademicFileStatus, ACADEMIC_FILE_STATUS_META } from '@/lib/types';
@@ -73,37 +74,27 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
 
       if (file.file_data.startsWith('data:')) {
         const parts = file.file_data.split(',');
-        if (parts.length < 2) {
-          setIsPdfValid(false);
-          return;
-        }
+        if (parts.length >= 2) {
+          const rawBase64 = parts[1].trim();
+          const mimeMatch = parts[0].match(/:(.*?);/);
+          const detectedMime = mimeMatch ? mimeMatch[1] : (file.mime_type || 'application/octet-stream');
+          const binary = atob(rawBase64);
+          const bytes = new Uint8Array(binary.length);
+          for (let i = 0; i < binary.length; i++) {
+            bytes[i] = binary.charCodeAt(i);
+          }
+          const blob = new Blob([bytes], { type: detectedMime });
+          const url = URL.createObjectURL(blob);
+          setBlobUrl(url);
+          setIsPdfValid(rawBase64.startsWith('JVBERi') || detectedMime.includes('pdf'));
 
-        const rawBase64 = parts[1].trim();
-        // Check if rawBase64 is a valid PDF (starts with JVBERi in base64)
-        if (rawBase64.length < 40 || (!rawBase64.startsWith('JVBERi') && !rawBase64.startsWith('/9j/') && !rawBase64.startsWith('iVBORw'))) {
-          // If corrupted or truncated, avoid Chrome gray "Failed to load" box
-          setIsPdfValid(false);
-          return;
+          return () => {
+            URL.revokeObjectURL(url);
+          };
         }
-
-        const mimeMatch = parts[0].match(/:(.*?);/);
-        const detectedMime = mimeMatch ? mimeMatch[1] : (file.mime_type || 'application/pdf');
-        const binary = atob(rawBase64);
-        const bytes = new Uint8Array(binary.length);
-        for (let i = 0; i < binary.length; i++) {
-          bytes[i] = binary.charCodeAt(i);
-        }
-        const blob = new Blob([bytes], { type: detectedMime });
-        const url = URL.createObjectURL(blob);
-        setBlobUrl(url);
-        setIsPdfValid(true);
-
-        return () => {
-          URL.revokeObjectURL(url);
-        };
       }
     } catch (err) {
-      console.warn('PDF blob creation error:', err);
+      console.warn('File blob creation error:', err);
       setIsPdfValid(false);
     }
   }, [file]);
@@ -117,15 +108,29 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
   const isPdf = mime.includes('pdf') || lowerName.endsWith('.pdf');
   const isWord =
     mime.includes('word') ||
-    mime.includes('officedocument') ||
+    mime.includes('officedocument.wordprocessingml') ||
     lowerName.endsWith('.docx') ||
     lowerName.endsWith('.doc');
+  const isExcel =
+    mime.includes('excel') ||
+    mime.includes('spreadsheet') ||
+    mime.includes('csv') ||
+    lowerName.endsWith('.xlsx') ||
+    lowerName.endsWith('.xls') ||
+    lowerName.endsWith('.csv');
+  const isPpt =
+    mime.includes('presentation') ||
+    mime.includes('powerpoint') ||
+    lowerName.endsWith('.pptx') ||
+    lowerName.endsWith('.ppt');
   const isImage =
     mime.startsWith('image/') ||
     lowerName.endsWith('.jpg') ||
     lowerName.endsWith('.jpeg') ||
     lowerName.endsWith('.png') ||
-    lowerName.endsWith('.webp');
+    lowerName.endsWith('.webp') ||
+    lowerName.endsWith('.gif') ||
+    lowerName.endsWith('.svg');
 
   const fileSize = file.file_size_bytes || 524288;
   const uploadTime = file.uploaded_at ? formatDateTime(file.uploaded_at) : 'Recent';
@@ -348,22 +353,44 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
                   ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
                   : isWord
                   ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
-                  : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                  : isExcel
+                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                  : isPpt
+                  ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                  : isImage
+                  ? 'bg-purple-500/20 text-purple-400 border border-purple-500/30'
+                  : 'bg-slate-700 text-slate-300'
               }`}
             >
               {isPdf ? (
                 <FileText className="w-5 h-5 text-rose-400" />
               ) : isWord ? (
                 <FileCheck className="w-5 h-5 text-blue-400" />
+              ) : isExcel ? (
+                <Table className="w-5 h-5 text-emerald-400" />
+              ) : isPpt ? (
+                <FileText className="w-5 h-5 text-amber-400" />
+              ) : isImage ? (
+                <ImageIcon className="w-5 h-5 text-purple-400" />
               ) : (
-                <ImageIcon className="w-5 h-5 text-emerald-400" />
+                <FileText className="w-5 h-5 text-slate-300" />
               )}
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-sm font-bold text-white truncate max-w-md">{fileName}</h3>
                 <span className="text-[10px] px-2 py-0.5 rounded-full font-mono bg-slate-800 text-slate-300 border border-slate-700 uppercase">
-                  {isPdf ? 'PDF Document' : isWord ? 'Word Document' : isImage ? 'Image Scan' : 'File'}
+                  {isPdf
+                    ? 'PDF Document'
+                    : isWord
+                    ? 'Word Document'
+                    : isExcel
+                    ? 'Excel Spreadsheet'
+                    : isPpt
+                    ? 'Presentation'
+                    : isImage
+                    ? 'Image File'
+                    : 'File'}
                 </span>
                 {file.status && (
                   <span
@@ -512,6 +539,130 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
 
                 <div className="bg-blue-50/70 border border-blue-200 rounded p-3 text-xs text-blue-900 font-sans flex items-center justify-between">
                   <span>Click <strong>Print File</strong> to print or <strong>Download</strong> to view/edit in Microsoft Word.</span>
+                </div>
+              </div>
+            </div>
+          ) : isExcel ? (
+            /* Excel Spreadsheet Preview */
+            <div className="w-full max-w-2xl bg-white rounded-xl shadow-lg border border-slate-300 p-8 flex flex-col space-y-6">
+              <div className="border-b-2 border-emerald-600 pb-4 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold text-lg shadow-sm">
+                    X
+                  </div>
+                  <div>
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-700">
+                      Microsoft Excel Spreadsheet (.xlsx / .csv)
+                    </span>
+                    <h4 className="text-base font-bold text-slate-900">{fileName}</h4>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full">
+                    <ShieldCheck className="w-3.5 h-3.5" />
+                    Verified Spreadsheet
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-slate-50 border border-slate-200 rounded-lg p-6 space-y-4 font-sans text-slate-800 text-sm leading-relaxed shadow-inner">
+                <div className="text-center pb-3 border-b border-slate-200">
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">
+                    University of Education, Faisalabad Campus
+                  </p>
+                  <p className="text-sm font-bold text-ue-navy">UE Business School — Faculty Academic Record</p>
+                </div>
+
+                <div>
+                  <h5 className="font-bold text-xs uppercase tracking-wide text-slate-600 mb-1">
+                    Spreadsheet Details:
+                  </h5>
+                  <p className="text-sm font-semibold text-slate-900">{fileName}</p>
+                  <p className="text-xs text-slate-600 mt-1">
+                    Submitted on: <span className="font-mono">{uploadTime}</span> &bull; File Size: {formatBytes(fileSize)}
+                  </p>
+                </div>
+
+                <div className="pt-2">
+                  <h5 className="font-bold text-xs uppercase tracking-wide text-slate-600 mb-1">
+                    Summary / Calculation Matrix:
+                  </h5>
+                  <p className="text-xs text-slate-700 leading-normal">
+                    This file contains student grade sheets, weighted marks calculation matrices, attendance tallies, or course budget evaluations. All formula cells and rows are preserved for Microsoft Excel.
+                  </p>
+                </div>
+
+                <div className="bg-emerald-50/70 border border-emerald-200 rounded p-3 text-xs text-emerald-900 flex items-center justify-between">
+                  <span>Click <strong>Download</strong> to view, calculate or edit in Microsoft Excel.</span>
+                  <button
+                    type="button"
+                    onClick={handleDownload}
+                    className="px-3 py-1 bg-emerald-700 hover:bg-emerald-800 text-white rounded font-bold text-xs shadow-xs"
+                  >
+                    Download Excel
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : isPpt ? (
+            /* PowerPoint Presentation Preview */
+            <div className="w-full max-w-2xl bg-white rounded-xl shadow-lg border border-slate-300 p-8 flex flex-col space-y-6">
+              <div className="border-b-2 border-amber-600 pb-4 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-xl bg-amber-600 text-white flex items-center justify-center font-bold text-lg shadow-sm">
+                    P
+                  </div>
+                  <div>
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-amber-700">
+                      PowerPoint Presentation (.pptx / .ppt)
+                    </span>
+                    <h4 className="text-base font-bold text-slate-900">{fileName}</h4>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full">
+                    <ShieldCheck className="w-3.5 h-3.5" />
+                    Verified Presentation
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-slate-50 border border-slate-200 rounded-lg p-6 space-y-4 font-sans text-slate-800 text-sm leading-relaxed shadow-inner">
+                <div className="text-center pb-3 border-b border-slate-200">
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">
+                    University of Education, Faisalabad Campus
+                  </p>
+                  <p className="text-sm font-bold text-ue-navy">UE Business School — Faculty Academic Record</p>
+                </div>
+
+                <div>
+                  <h5 className="font-bold text-xs uppercase tracking-wide text-slate-600 mb-1">
+                    Presentation Title &amp; Details:
+                  </h5>
+                  <p className="text-sm font-semibold text-slate-900">{fileName}</p>
+                  <p className="text-xs text-slate-600 mt-1">
+                    Submitted on: <span className="font-mono">{uploadTime}</span> &bull; File Size: {formatBytes(fileSize)}
+                  </p>
+                </div>
+
+                <div className="pt-2">
+                  <h5 className="font-bold text-xs uppercase tracking-wide text-slate-600 mb-1">
+                    Lecture &amp; Seminar Slides:
+                  </h5>
+                  <p className="text-xs text-slate-700 leading-normal">
+                    This presentation slide deck contains official lecture delivery materials, business case briefing decks, or seminar presentations.
+                  </p>
+                </div>
+
+                <div className="bg-amber-50/70 border border-amber-200 rounded p-3 text-xs text-amber-900 flex items-center justify-between">
+                  <span>Click <strong>Download</strong> to view or present in Microsoft PowerPoint.</span>
+                  <button
+                    type="button"
+                    onClick={handleDownload}
+                    className="px-3 py-1 bg-amber-700 hover:bg-amber-800 text-white rounded font-bold text-xs shadow-xs"
+                  >
+                    Download Slides
+                  </button>
                 </div>
               </div>
             </div>

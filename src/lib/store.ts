@@ -1100,14 +1100,9 @@ export function getAllAcademicFilesForCourse(teacherCourseId: string): AcademicF
 
 export function uploadAcademicFile(data: Omit<AcademicFile, 'id' | 'uploaded_at' | 'status'>): AcademicFile {
   const files = getStored<AcademicFile[]>('academic_files', []);
-  // Keep file_data compact to avoid browser localStorage quota and eliminate lag
-  let cleanData = data.file_data;
-  if (cleanData && cleanData.length > 80000) {
-    cleanData = cleanData.substring(0, 10000);
-  }
   const newFile: AcademicFile = {
     ...data,
-    file_data: cleanData,
+    file_data: data.file_data,
     id: `afile-${Date.now()}`,
     uploaded_at: new Date().toISOString(),
     status: 'submitted',
