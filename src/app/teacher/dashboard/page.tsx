@@ -13,7 +13,14 @@ import {
   Calendar,
   FileText,
 } from 'lucide-react';
-import { getCurrentUser, getTeacherDuties, getTeachingActivities, getAdditionalActivities, getTeacherCourses } from '@/lib/store';
+import {
+  getCurrentUser,
+  getTeacherDuties,
+  getTeachingActivities,
+  getAdditionalActivities,
+  getTeacherCourses,
+  syncWithCloudDatabase,
+} from '@/lib/store';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { formatDate, formatDateTime } from '@/lib/utils';
 import { DUTY_CATEGORIES } from '@/lib/types';
@@ -26,7 +33,7 @@ export default function TeacherDashboardPage() {
   const [additionalActs, setAdditionalActs] = useState<any[]>([]);
   const [courses, setCourses] = useState<any[]>([]);
 
-  useEffect(() => {
+  const refresh = () => {
     const user = getCurrentUser();
     setCurrentUser(user);
     if (user) {
@@ -35,6 +42,19 @@ export default function TeacherDashboardPage() {
       setAdditionalActs(getAdditionalActivities(user.id));
       setCourses(getTeacherCourses(user.id));
     }
+  };
+
+  useEffect(() => {
+    refresh();
+    syncWithCloudDatabase().then(() => refresh());
+
+    const handleSync = () => refresh();
+    window.addEventListener('ue-courses-change', handleSync);
+    window.addEventListener('storage', handleSync);
+    return () => {
+      window.removeEventListener('ue-courses-change', handleSync);
+      window.removeEventListener('storage', handleSync);
+    };
   }, []);
 
   const totalAssigned = duties.length;

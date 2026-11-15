@@ -741,6 +741,10 @@ export function submitDuty(
 
   setStored('submissions', submissions);
   setStored('assignment_teachers', updatedLinks);
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('storage'));
+    window.dispatchEvent(new Event('ue-courses-change'));
+  }
 
   logAudit('SUBMIT_DUTY', 'submission', newOrUpdatedSubmission.id, {
     assignmentId,
@@ -785,6 +789,10 @@ export function reviewSubmission(
 
   setStored('submissions', submissions);
   setStored('assignment_teachers', updatedLinks);
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('storage'));
+    window.dispatchEvent(new Event('ue-courses-change'));
+  }
 
   logAudit('REVIEW_SUBMISSION', 'submission', submissionId, {
     decision,
@@ -914,6 +922,20 @@ const INITIAL_TEACHER_COURSES: TeacherCourse[] = [
     subject_name: 'Quantitative Methods & Decisions', subject_code: 'BUSA 7136',
     program: 'MBA', class_section: 'MBA 1st Evening A',
     semester_number: 1, academic_year: '2026', term: 'Fall',
+    created_at: '2026-08-01T00:00:00Z',
+  },
+  {
+    id: 'tc-aliraza-001', teacher_id: 'user-teacher-aliraza',
+    subject_name: 'Financial Management', subject_code: 'FIN-301',
+    program: 'BBA', class_section: 'BBA 5th Morning A',
+    semester_number: 5, academic_year: '2026', term: 'Fall',
+    created_at: '2026-08-01T00:00:00Z',
+  },
+  {
+    id: 'tc-aliraza-002', teacher_id: 'user-teacher-aliraza',
+    subject_name: 'Business Finance', subject_code: 'FIN-201',
+    program: 'BBA', class_section: 'BBA 3rd Evening B',
+    semester_number: 3, academic_year: '2026', term: 'Fall',
     created_at: '2026-08-01T00:00:00Z',
   },
 ];
@@ -1065,9 +1087,13 @@ export function uploadAcademicFile(data: Omit<AcademicFile, 'id' | 'uploaded_at'
     ...data,
     id: `afile-${Date.now()}`,
     uploaded_at: new Date().toISOString(),
-    status: 'not_submitted',
+    status: 'submitted',
   };
   setStored('academic_files', [...files, newFile]);
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('ue-courses-change'));
+    window.dispatchEvent(new Event('storage'));
+  }
   logAudit('UPLOAD_ACADEMIC_FILE', 'academic_file', newFile.id, {
     file: newFile.original_name,
     category: newFile.category_id,
@@ -1260,6 +1286,10 @@ export function createTeachingActivity(
 
   const updated = [newActivity, ...items];
   setStored('teaching_activities', updated);
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('storage'));
+    window.dispatchEvent(new Event('ue-courses-change'));
+  }
   logAudit('CREATE_TEACHING_ACTIVITY', 'teaching_activity', newActivity.id, {
     title: newActivity.title,
     type: newActivity.activity_type,
@@ -1796,6 +1826,86 @@ export async function autoRestoreFromDiskIfEmpty(): Promise<boolean> {
       return true;
     }
     return false;
+  } catch {
+    return false;
+  }
+}
+
+export async function syncWithCloudDatabase(): Promise<boolean> {
+  if (typeof window === 'undefined') return false;
+  try {
+    const res = await fetch('/api/backup', { cache: 'no-store' });
+    if (!res.ok) return false;
+    const json = await res.json();
+    if (!json.success || !json.data) return false;
+
+    const remotePayload = json.data.data || json.data;
+    let changed = false;
+
+    // Keys to merge
+    const MERGE_ARRAY_KEYS = [
+      'teacher_courses',
+      'academic_files',
+      'course_coverage_reports',
+      'teaching_activities',
+      'additional_activities',
+      'submissions',
+      'assignment_teachers',
+      'profiles',
+    ] as const;
+
+    for (const key of MERGE_ARRAY_KEYS) {
+      const remoteList = remotePayload[key] || remotePayload[STORAGE_KEY_PREFIX + key];
+      if (Array.isArray(remoteList) && remoteList.length > 0) {
+        const localList = getStored<any[]>(key, []);
+        const itemMap = new Map();
+        localList.forEach((item) => { if (item?.id) itemMap.set(item.id, item); });
+
+        let addedOrUpdated = false;
+        remoteList.forEach((remoteItem) => {
+          if (!remoteItem?.id) return;
+          const localItem = itemMap.get(remoteItem.id);
+          if (!localItem) {
+            itemMap.set(remoteItem.id, remoteItem);
+            addedOrUpdated = true;
+          } else {
+            const remoteTime = new Date(
+              remoteItem.updated_at ||
+              remoteItem.uploaded_at ||
+              remoteItem.submitted_at ||
+              remoteItem.created_at ||
+              0
+            ).getTime();
+            const localTime = new Date(
+              localItem.updated_at ||
+              localItem.uploaded_at ||
+              localItem.submitted_at ||
+              localItem.created_at ||
+              0
+            ).getTime();
+            if (
+              remoteTime > localTime ||
+              (remoteItem.status === 'submitted' && localItem.status === 'not_submitted')
+            ) {
+              itemMap.set(remoteItem.id, { ...localItem, ...remoteItem });
+              addedOrUpdated = true;
+            }
+          }
+        });
+
+        if (addedOrUpdated) {
+          const merged = Array.from(itemMap.values());
+          localStorage.setItem(STORAGE_KEY_PREFIX + key, JSON.stringify(merged));
+          changed = true;
+        }
+      }
+    }
+
+    if (changed) {
+      window.dispatchEvent(new Event('ue-courses-change'));
+      window.dispatchEvent(new Event('storage'));
+    }
+    return true;
   } catch {
     return false;
   }

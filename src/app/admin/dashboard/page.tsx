@@ -24,9 +24,19 @@ import {
   getSubmissions,
   getTeacherCourseById,
   getStored,
+  syncWithCloudDatabase,
 } from '@/lib/store';
-import { CourseCoverageReport, AcademicFile } from '@/lib/types';
-import { INITIAL_COURSE_COVERAGE_REPORTS } from '@/lib/mock-data';
+import {
+  CourseCoverageReport,
+  AcademicFile,
+  TeachingActivity,
+  AdditionalAcademicActivity,
+} from '@/lib/types';
+import {
+  INITIAL_COURSE_COVERAGE_REPORTS,
+  INITIAL_TEACHING_ACTIVITIES,
+  INITIAL_ADDITIONAL_ACTIVITIES,
+} from '@/lib/mock-data';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { formatDate } from '@/lib/utils';
 
@@ -102,49 +112,117 @@ export default function AdminDashboardPage() {
     // 3. Academic Dossiers (Midterm & Final)
     const academicFiles = getStored<AcademicFile[]>('academic_files', []);
     const academicItems = academicFiles
-      .filter((f) => f.status === 'submitted' || f.status === 'under_review')
+      .filter((f) => f.status !== 'rejected')
       .map((f) => {
         const course = getTeacherCourseById(f.teacher_course_id);
-        const teacher = profiles.find((p) => p.id === course?.teacher_id);
-        const tId = teacher?.id || course?.teacher_id || 'teacher';
+        const teacher = profiles.find((p) => p.id === (course?.teacher_id || f.teacher_id));
+        const tId = teacher?.id || course?.teacher_id || f.teacher_id || 'teacher';
         const y = course?.academic_year || '2026';
         const trm = course?.term || 'Fall';
         const isMidterm = !f.category_id.includes('final');
         const sectionName = isMidterm ? 'midterm' : 'final';
         return {
           id: f.id,
-          title: `${isMidterm ? 'Midterm' : 'Final'} Dossier: ${f.file_name} (${course?.subject_code || ''})`,
+          title: `${isMidterm ? 'Midterm' : 'Final'} File: ${f.original_name || f.file_name} (${course?.subject_code || ''})`,
           category: `${isMidterm ? 'Midterm' : 'Final'} Dossier`,
           teacherName: teacher?.full_name || 'Faculty Member',
           teacherEmail: teacher?.email || '',
           submittedAt: f.uploaded_at || new Date().toISOString(),
           filesDesc: '1 File Uploaded',
-          status: f.status,
+          status: f.status || 'submitted',
           link: `/admin/academic/${tId}/${y}/${trm}/${f.teacher_course_id}/${sectionName}`,
         };
       });
 
-    const combined = [...dutyItems, ...coverageItems, ...academicItems].sort(
+    // 4. Teaching & Assessment Activities (Assignments, Quizzes, Attendance, Presentations)
+    const teachingActs = getStored<TeachingActivity[]>(
+      'teaching_activities',
+      INITIAL_TEACHING_ACTIVITIES
+    );
+    const activityItems = teachingActs
+      .filter((act) => act.status !== 'rejected')
+      .map((act) => {
+        const teacher = profiles.find((p) => p.id === act.teacher_id);
+        const tName = act.teacher_name || teacher?.full_name || 'Faculty Member';
+        const tEmail = teacher?.email || '';
+        return {
+          id: act.id,
+          title: `${act.title} (${act.course_code || ''} ${act.course_name || ''})`,
+          category: `Activity: ${act.activity_type.toUpperCase()}`,
+          teacherName: tName,
+          teacherEmail: tEmail,
+          submittedAt: act.created_at || new Date().toISOString(),
+          filesDesc: `${act.files?.length || 0} Files Attached`,
+          status: act.status || 'submitted',
+          link: `/admin/reporting`,
+        };
+      });
+
+    // 5. Additional Activities (Events, Industry Tours, Seminars)
+    const additionalActs = getStored<AdditionalAcademicActivity[]>(
+      'additional_activities',
+      INITIAL_ADDITIONAL_ACTIVITIES
+    );
+    const addActivityItems = additionalActs
+      .filter((act) => act.status !== 'rejected')
+      .map((act) => {
+        const teacher = profiles.find((p) => p.id === act.teacher_id);
+        const tName = act.teacher_name || teacher?.full_name || 'Faculty Member';
+        const tEmail = teacher?.email || '';
+        const filesCount = (act.photos?.length || 0) + (act.documents?.length || 0);
+        return {
+          id: act.id,
+          title: `${act.title} (${act.activity_type.replace('_', ' ').toUpperCase()})`,
+          category: `Event / Tour`,
+          teacherName: tName,
+          teacherEmail: tEmail,
+          submittedAt: act.created_at || new Date().toISOString(),
+          filesDesc: `${filesCount} Attachments`,
+          status: act.status || 'submitted',
+          link: `/admin/reporting`,
+        };
+      });
+
+    const combined = [
+      ...dutyItems,
+      ...coverageItems,
+      ...academicItems,
+      ...activityItems,
+      ...addActivityItems,
+    ].sort(
       (a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()
     );
 
     const awaiting = combined.filter(
-      (s) => s.status === 'submitted' || s.status === 'under_review'
+      (s) => s.status === 'submitted' || s.status === 'under_review' || !s.status
     );
     setAwaitingReviewCount(awaiting.length);
-    setRecentSubmissions(combined.slice(0, 8));
+    setRecentSubmissions(combined.slice(0, 10));
   };
 
   useEffect(() => {
     refresh();
+    syncWithCloudDatabase().then(() => refresh());
 
     const handleSync = () => refresh();
     window.addEventListener('ue-courses-change', handleSync);
     window.addEventListener('storage', handleSync);
 
+    const handleFocus = () => {
+      syncWithCloudDatabase().then(() => refresh());
+    };
+    window.addEventListener('focus', handleFocus);
+
+    // Auto-check for new submissions every 15 seconds
+    const interval = setInterval(() => {
+      syncWithCloudDatabase().then(() => refresh());
+    }, 15000);
+
     return () => {
       window.removeEventListener('ue-courses-change', handleSync);
       window.removeEventListener('storage', handleSync);
+      window.removeEventListener('focus', handleFocus);
+      clearInterval(interval);
     };
   }, []);
 

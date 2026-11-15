@@ -26,9 +26,20 @@ export default function SubmissionsManagementPage() {
   const [teacherFilter, setTeacherFilter] = useState<string>('all');
   const [profiles, setProfiles] = useState<any[]>([]);
 
-  useEffect(() => {
+  const refresh = () => {
     setSubmissions(getSubmissions());
     setProfiles(getProfiles().filter((p) => p.role === 'teacher'));
+  };
+
+  useEffect(() => {
+    refresh();
+    const handleSync = () => refresh();
+    window.addEventListener('storage', handleSync);
+    window.addEventListener('ue-courses-change', handleSync);
+    return () => {
+      window.removeEventListener('storage', handleSync);
+      window.removeEventListener('ue-courses-change', handleSync);
+    };
   }, []);
 
   const filtered = submissions.filter((subm) => {
@@ -51,12 +62,19 @@ export default function SubmissionsManagementPage() {
         <div>
           <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
             <FileCheck2 className="w-5 h-5 text-ue-navy" />
-            Faculty Duty Submissions &amp; Moderation
+            Faculty Submissions &amp; Moderation
           </h1>
           <p className="text-xs text-slate-500">
             Inspect uploaded course documents, question papers, and award lists submitted by faculty.
           </p>
         </div>
+        <Link
+          href="/admin/reporting"
+          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-ue-navy hover:bg-ue-navy-light text-white font-bold text-xs shadow-sm transition"
+        >
+          <FileText className="w-4 h-4 text-ue-gold" />
+          View All Academic Files &amp; Coverage Reports &rarr;
+        </Link>
       </div>
 
       {/* Filter and Search Bar */}
