@@ -429,7 +429,19 @@ export function deleteFaculty(id: string): void {
 // Academic Structure (Programs, Sessions, Semesters, Subjects)
 // -----------------------------------------------------------------------------
 export function getPrograms(): Program[] {
-  return getStored<Program[]>('programs', INITIAL_PROGRAMS);
+  let stored = getStored<Program[]>('programs', INITIAL_PROGRAMS);
+  if (!Array.isArray(stored) || stored.length === 0) {
+    stored = [...INITIAL_PROGRAMS];
+    setStored('programs', stored);
+    return stored;
+  }
+  const existingCodes = new Set(stored.map((p) => p.code));
+  const missing = INITIAL_PROGRAMS.filter((p) => !existingCodes.has(p.code));
+  if (missing.length > 0) {
+    stored = [...stored, ...missing];
+    setStored('programs', stored);
+  }
+  return stored;
 }
 
 export function getSessions(): AcademicSession[] {
@@ -596,28 +608,20 @@ export function deleteSemester(id: string): void {
 
 export function getSubjects(): Subject[] {
   let stored = getStored<Subject[]>('subjects', INITIAL_SUBJECTS);
+  if (!Array.isArray(stored) || stored.length === 0) {
+    stored = [...INITIAL_SUBJECTS];
+    setStored('subjects', stored);
+    return stored;
+  }
   
-  // Ensure official BS Business Analytics courses are always seeded into store
-  const bsbaInitial = INITIAL_SUBJECTS.filter((s) => s.program_id === 'prog-bsba');
-  const existingBsbaIds = new Set(stored.filter((s) => s.program_id === 'prog-bsba').map((s) => s.code));
-  const missingBsba = bsbaInitial.filter((s) => !existingBsbaIds.has(s.code));
+  // Guarantee ALL official initial curriculum subjects (BBA, BSBA, MBA) exist in store!
+  const existingCodes = new Set(stored.map((s) => (s.code || '').replace(/\s+/g, '').toUpperCase()));
+  const missing = INITIAL_SUBJECTS.filter(
+    (s) => !existingCodes.has((s.code || '').replace(/\s+/g, '').toUpperCase())
+  );
 
-  // Ensure official MBA courses (Annexure-7-N) are always seeded into store
-  const mbaInitial = INITIAL_SUBJECTS.filter((s) => s.program_id === 'prog-mba');
-  const existingMbaCodes = new Set(stored.filter((s) => s.program_id === 'prog-mba').map((s) => s.code.replace(/\s+/g, '')));
-  const missingMba = mbaInitial.filter((s) => !existingMbaCodes.has(s.code.replace(/\s+/g, '')));
-
-  let updated = false;
-  if (missingBsba.length > 0) {
-    stored = [...stored, ...missingBsba];
-    updated = true;
-  }
-  if (missingMba.length > 0) {
-    stored = [...stored, ...missingMba];
-    updated = true;
-  }
-
-  if (updated) {
+  if (missing.length > 0) {
+    stored = [...stored, ...missing];
     setStored('subjects', stored);
   }
 

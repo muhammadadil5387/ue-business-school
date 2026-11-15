@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
+import { INITIAL_SUBJECTS, INITIAL_PROGRAMS } from '@/lib/mock-data';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -120,6 +121,16 @@ export async function GET() {
         dataChanged = true;
       }
 
+      // Guarantee subjects and programs are always present in cloud database
+      if (!Array.isArray(kvExt.subjects) || kvExt.subjects.length === 0) {
+        kvExt.subjects = INITIAL_SUBJECTS;
+        dataChanged = true;
+      }
+      if (!Array.isArray(kvExt.programs) || kvExt.programs.length === 0) {
+        kvExt.programs = INITIAL_PROGRAMS;
+        dataChanged = true;
+      }
+
       if (dataChanged) {
         const optimizedPayload = {
           ...kvData,
@@ -217,6 +228,8 @@ export async function POST(req: NextRequest) {
           submissions: [],
           assignments: [],
           assignment_teachers: [],
+          programs: INITIAL_PROGRAMS,
+          subjects: INITIAL_SUBJECTS,
           audit_logs: [],
           deleted_ids: [],
         },
@@ -274,6 +287,7 @@ export async function POST(req: NextRequest) {
       'assignments',
       'programs',
       'semesters',
+      'subjects',
     ] as const;
 
     const mergedData: Record<string, any> = { ...existing };

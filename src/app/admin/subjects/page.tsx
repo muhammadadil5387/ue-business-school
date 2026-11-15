@@ -22,6 +22,7 @@ import {
   getPrograms,
   getOfficialCourseOutline,
   OFFICIAL_COURSE_OUTLINES,
+  syncWithCloudDatabase,
 } from '@/lib/store';
 import { Subject, Program } from '@/lib/types';
 
@@ -66,6 +67,7 @@ export default function SubjectsManagementPage() {
 
   useEffect(() => {
     reloadData();
+    syncWithCloudDatabase().then(() => reloadData());
     const handleSync = () => reloadData();
     window.addEventListener('storage', handleSync);
     window.addEventListener('ue-courses-change', handleSync);
