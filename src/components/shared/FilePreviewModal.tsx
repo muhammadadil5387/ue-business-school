@@ -206,6 +206,15 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
 
   // Direct Print File with authentic document presentation
   const handlePrint = () => {
+    // If blobUrl is available, modern browsers print it natively and cleanly!
+    if (blobUrl) {
+      const pTab = window.open(blobUrl, '_blank');
+      if (pTab) {
+        pTab.focus();
+        return;
+      }
+    }
+
     // If the uploaded file is a direct image, print the authentic original image directly
     if (file.file_data && isImage) {
       const imgWindow = window.open('', '_blank');
@@ -462,15 +471,27 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
                 >
                   Reset
                 </button>
+                {(blobUrl || file.file_data) && (
+                  <button
+                    onClick={() => {
+                      const url = blobUrl || file.file_data;
+                      if (url) window.open(url, '_blank');
+                    }}
+                    className="text-[11px] text-ue-navy hover:text-ue-navy-light ml-1 px-2 py-0.5 rounded font-semibold border border-ue-navy/30 bg-ue-navy/5 flex items-center gap-1"
+                    title="Open full resolution in a new tab"
+                  >
+                    Open Full Image
+                  </button>
+                )}
               </div>
 
-              <div className="max-h-[50vh] max-w-full overflow-auto bg-white p-3 rounded-xl border border-slate-300 shadow flex items-center justify-center">
+              <div className="max-h-[65vh] w-full max-w-3xl overflow-auto bg-white p-3 rounded-xl border border-slate-300 shadow flex items-center justify-center">
                 {file.file_data ? (
                   <img
                     src={file.file_data}
                     alt={fileName}
-                    style={{ transform: `scale(${zoom})`, transformOrigin: 'top center' }}
-                    className="max-h-[48vh] max-w-full object-contain rounded transition-transform"
+                    style={{ transform: `scale(${zoom})`, transformOrigin: 'center center' }}
+                    className="max-h-[60vh] max-w-full object-contain rounded transition-transform"
                   />
                 ) : (
                   <div className="p-8 text-center flex flex-col items-center justify-center">

@@ -300,10 +300,27 @@ export function toggleFacultyStatus(id: string): void {
 export function updateFacultyPassword(id: string, newPassword: string): void {
   const profiles = getProfiles();
   const updated = profiles.map((p) =>
-    p.id === id ? { ...p, password: newPassword } : p
+    p.id === id ? { ...p, password: newPassword, updated_at: new Date().toISOString() } : p
   );
   setStored('profiles', updated);
   logAudit('UPDATE_PASSWORD', 'profile', id, {});
+
+  // Update current_user if active session is this user
+  const current = getCurrentUser();
+  if (current && current.id === id) {
+    setCurrentUser({ ...current, password: newPassword });
+  }
+
+  // Push instantly to cloud database so other devices get new password immediately
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('ue-auth-change'));
+    window.dispatchEvent(new Event('storage'));
+    fetch('/api/backup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data: { profiles: updated } }),
+    }).catch(() => {});
+  }
 }
 
 export function updateFaculty(id: string, updates: Partial<Profile>): Profile | null {
@@ -311,14 +328,22 @@ export function updateFaculty(id: string, updates: Partial<Profile>): Profile | 
   let updatedItem: Profile | null = null;
   const updated = profiles.map((p) => {
     if (p.id === id) {
-      updatedItem = { ...p, ...updates };
+      updatedItem = { ...p, ...updates, updated_at: new Date().toISOString() };
       return updatedItem;
     }
     return p;
   });
   setStored('profiles', updated);
+
+  // Update current_user if active session is this user
+  const current = getCurrentUser();
+  if (current && current.id === id && updatedItem) {
+    setCurrentUser(updatedItem);
+  }
+
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new Event('ue-auth-change'));
+    window.dispatchEvent(new Event('storage'));
     fetch('/api/backup', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1013,19 +1038,24 @@ export function deleteTeacherCourse(id: string): void {
   // Also remove related categories, files and coverage reports
   const cats = getStored<AcademicCategory[]>('academic_categories', []);
   const catIds = cats.filter((c) => c.teacher_course_id === id).map((c) => c.id);
-  setStored('academic_categories', cats.filter((c) => c.teacher_course_id !== id));
+  const remainingCats = cats.filter((c) => c.teacher_course_id !== id);
+  setStored('academic_categories', remainingCats);
 
   const files = getStored<AcademicFile[]>('academic_files', []);
-  setStored('academic_files', files.filter((f) => !catIds.includes(f.category_id) && f.teacher_course_id !== id));
+  const fileIds = files.filter((f) => catIds.includes(f.category_id) || f.teacher_course_id === id).map((f) => f.id);
+  const remainingFiles = files.filter((f) => !catIds.includes(f.category_id) && f.teacher_course_id !== id);
+  setStored('academic_files', remainingFiles);
 
   const ccrs = getStored<CourseCoverageReport[]>('course_coverage_reports', []);
   const ccrIds = ccrs.filter((r) => r.teacher_course_id === id).map((r) => r.id);
-  setStored('course_coverage_reports', ccrs.filter((r) => r.teacher_course_id !== id));
+  const remainingCcrs = ccrs.filter((r) => r.teacher_course_id !== id);
+  setStored('course_coverage_reports', remainingCcrs);
 
-  // Track deleted IDs in local deleted_ids so cloud never resurrects it!
+  // Track deleted IDs in local deleted_ids so cloud never resurrects any of it!
   const deletedIds = getStored<string[]>('deleted_ids', []);
-  const allDeletedForThisCourse = [id, ...catIds, ...ccrIds];
-  setStored('deleted_ids', Array.from(new Set([...deletedIds, ...allDeletedForThisCourse])));
+  const allDeletedForThisCourse = [id, ...catIds, ...fileIds, ...ccrIds];
+  const newDeleted = Array.from(new Set([...deletedIds, ...allDeletedForThisCourse]));
+  setStored('deleted_ids', newDeleted);
 
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new Event('ue-courses-change'));
@@ -1038,7 +1068,13 @@ export function deleteTeacherCourse(id: string): void {
       body: JSON.stringify({
         deleted_ids: allDeletedForThisCourse,
         deleted_type: 'teacher_courses',
-        data: getAllStorageData(),
+        data: {
+          teacher_courses: updatedCourses,
+          academic_categories: remainingCats,
+          academic_files: remainingFiles,
+          course_coverage_reports: remainingCcrs,
+          deleted_ids: newDeleted,
+        },
       }),
     }).catch(() => {});
   }
@@ -1081,21 +1117,53 @@ export function updateAcademicCategory(id: string, name: string): void {
 
 export function deleteAcademicCategory(id: string): void {
   const cats = getStored<AcademicCategory[]>('academic_categories', []);
-  setStored('academic_categories', cats.filter((c) => c.id !== id));
   const files = getStored<AcademicFile[]>('academic_files', []);
-  setStored('academic_files', files.filter((f) => f.category_id !== id));
+  const fileIds = files.filter((f) => f.category_id === id).map((f) => f.id);
+  const updatedCats = cats.filter((c) => c.id !== id);
+  const updatedFiles = files.filter((f) => f.category_id !== id);
+  setStored('academic_categories', updatedCats);
+  setStored('academic_files', updatedFiles);
+
+  const deletedIds = getStored<string[]>('deleted_ids', []);
+  const newDeleted = Array.from(new Set([...deletedIds, id, ...fileIds]));
+  setStored('deleted_ids', newDeleted);
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('ue-courses-change'));
+    window.dispatchEvent(new Event('storage'));
+
+    fetch('/api/backup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        deleted_ids: [id, ...fileIds],
+        deleted_type: 'academic_categories',
+        data: {
+          academic_categories: updatedCats,
+          academic_files: updatedFiles,
+          deleted_ids: newDeleted,
+        },
+      }),
+    }).catch(() => {});
+  }
   logAudit('DELETE_CATEGORY', 'academic_category', id, {});
 }
 
 // Academic Files
 export function getAcademicFiles(categoryId: string): AcademicFile[] {
   const files = getStored<AcademicFile[]>('academic_files', []);
-  return files.filter((f) => f.category_id === categoryId);
+  const deletedIds = new Set(
+    (getStored<string[]>('deleted_ids', []) || []).map((x) => String(x).toLowerCase().trim())
+  );
+  return files.filter((f) => f.category_id === categoryId && !deletedIds.has(f.id.toLowerCase().trim()));
 }
 
 export function getAllAcademicFilesForCourse(teacherCourseId: string): AcademicFile[] {
   const files = getStored<AcademicFile[]>('academic_files', []);
-  return files.filter((f) => f.teacher_course_id === teacherCourseId);
+  const deletedIds = new Set(
+    (getStored<string[]>('deleted_ids', []) || []).map((x) => String(x).toLowerCase().trim())
+  );
+  return files.filter((f) => f.teacher_course_id === teacherCourseId && !deletedIds.has(f.id.toLowerCase().trim()));
 }
 
 export function uploadAcademicFile(data: Omit<AcademicFile, 'id' | 'uploaded_at' | 'status'>): AcademicFile {
@@ -1121,7 +1189,30 @@ export function uploadAcademicFile(data: Omit<AcademicFile, 'id' | 'uploaded_at'
 
 export function deleteAcademicFile(id: string): void {
   const files = getStored<AcademicFile[]>('academic_files', []);
-  setStored('academic_files', files.filter((f) => f.id !== id));
+  const updated = files.filter((f) => f.id !== id);
+  setStored('academic_files', updated);
+
+  const deletedIds = getStored<string[]>('deleted_ids', []);
+  const newDeleted = Array.from(new Set([...deletedIds, id]));
+  setStored('deleted_ids', newDeleted);
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('ue-courses-change'));
+    window.dispatchEvent(new Event('storage'));
+
+    fetch('/api/backup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        deleted_ids: [id],
+        deleted_type: 'academic_files',
+        data: {
+          academic_files: updated,
+          deleted_ids: newDeleted,
+        },
+      }),
+    }).catch(() => {});
+  }
   logAudit('DELETE_ACADEMIC_FILE', 'academic_file', id, {});
 }
 
@@ -1912,6 +2003,7 @@ export async function syncWithCloudDatabase(): Promise<boolean> {
     // Keys to merge
     const MERGE_ARRAY_KEYS = [
       'teacher_courses',
+      'academic_categories',
       'academic_files',
       'course_coverage_reports',
       'teaching_activities',
@@ -1919,6 +2011,7 @@ export async function syncWithCloudDatabase(): Promise<boolean> {
       'submissions',
       'assignment_teachers',
       'profiles',
+      'subjects',
     ] as const;
 
     for (const key of MERGE_ARRAY_KEYS) {
@@ -1962,7 +2055,15 @@ export async function syncWithCloudDatabase(): Promise<boolean> {
               remoteTime > localTime ||
               (remoteItem.status === 'submitted' && localItem.status === 'not_submitted') ||
               // If status or is_active changed remotely, honor remote state!
-              (remoteItem.is_active !== undefined && remoteItem.is_active !== localItem.is_active)
+              (remoteItem.is_active !== undefined && remoteItem.is_active !== localItem.is_active) ||
+              // If profile fields (password, name, designation, etc.) changed remotely
+              (key === 'profiles' && (
+                remoteItem.password !== localItem.password ||
+                remoteItem.full_name !== localItem.full_name ||
+                remoteItem.email !== localItem.email ||
+                remoteItem.designation !== localItem.designation ||
+                remoteItem.role !== localItem.role
+              ))
             ) {
               itemMap.set(remoteItem.id, { ...localItem, ...remoteItem });
               addedOrUpdated = true;
@@ -1974,6 +2075,15 @@ export async function syncWithCloudDatabase(): Promise<boolean> {
           const merged = Array.from(itemMap.values());
           localStorage.setItem(STORAGE_KEY_PREFIX + key, JSON.stringify(merged));
           changed = true;
+
+          // If current logged-in profile was updated, sync current_user in localStorage too!
+          if (key === 'profiles') {
+            const curUser = getCurrentUser();
+            if (curUser && itemMap.has(curUser.id)) {
+              localStorage.setItem(STORAGE_KEY_PREFIX + 'current_user', JSON.stringify(itemMap.get(curUser.id)));
+              window.dispatchEvent(new Event('ue-auth-change'));
+            }
+          }
         }
       } else if (changed) {
         const merged = Array.from(itemMap.values());

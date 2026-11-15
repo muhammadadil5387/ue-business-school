@@ -13,6 +13,7 @@ import {
   uploadAcademicFile,
   deleteAcademicFile,
   submitCategoryFiles,
+  syncWithCloudDatabase,
 } from '@/lib/store';
 import { AcademicCategory, AcademicFile, ACADEMIC_FILE_STATUS_META, AcademicFileStatus } from '@/lib/types';
 import { Eye, Download, Printer } from 'lucide-react';
@@ -90,6 +91,26 @@ export default function FinalPage({ params }: PageProps) {
     setCourse(c);
     if (c) loadCategories(courseId);
     setLoading(false);
+
+    syncWithCloudDatabase().then(() => {
+      const freshCourse = getTeacherCourseById(courseId);
+      setCourse(freshCourse);
+      if (freshCourse) loadCategories(courseId);
+    });
+
+    const syncHandler = () => {
+      const updatedCourse = getTeacherCourseById(courseId);
+      setCourse(updatedCourse);
+      if (updatedCourse) loadCategories(courseId);
+    };
+
+    window.addEventListener('ue-courses-change', syncHandler);
+    window.addEventListener('storage', syncHandler);
+
+    return () => {
+      window.removeEventListener('ue-courses-change', syncHandler);
+      window.removeEventListener('storage', syncHandler);
+    };
   }, [courseId]);
 
   function refreshCat(catId: string) {

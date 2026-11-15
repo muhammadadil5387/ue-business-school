@@ -59,7 +59,51 @@ export default function LoginPage() {
         return;
       }
 
-      let profiles = getProfiles();
+      // 1. Always fetch latest cloud database on login attempt to ensure newly created users,
+      // updated passwords, and deletions are synchronized across all devices immediately!
+      try {
+        const res = await fetch('/api/backup', { cache: 'no-store' });
+        if (res.ok) {
+          const json = await res.json();
+          const remoteData = json.data?.data || json.data;
+          if (Array.isArray(remoteData?.deleted_ids)) {
+            remoteData.deleted_ids.forEach((id: string) => {
+              const cleanId = String(id).toLowerCase().trim();
+              if (cleanId !== 'user-admin-kashif' && cleanId !== 'drkashif@ue.edu.pk' && cleanId !== 'kashif' && cleanId !== 'dr.kashif') {
+                deletedIds.add(cleanId);
+              }
+            });
+            localStorage.setItem('ue_portal_data_deleted_ids', JSON.stringify(Array.from(deletedIds)));
+          }
+          if (Array.isArray(remoteData?.profiles) && remoteData.profiles.length > 0) {
+            const cloudProfiles = remoteData.profiles.filter(
+              (p: any) => !deletedIds.has((p.id || '').toLowerCase().trim()) && !deletedIds.has((p.email || '').toLowerCase().trim())
+            );
+            const localProfiles = getProfiles();
+            const profileMap = new Map();
+            localProfiles.forEach((p) => {
+              if (!deletedIds.has((p.id || '').toLowerCase().trim())) {
+                profileMap.set(p.id, p);
+              }
+            });
+            cloudProfiles.forEach((cp: any) => {
+              if (cp.id) {
+                profileMap.set(cp.id, { ...(profileMap.get(cp.id) || {}), ...cp });
+              }
+            });
+            profiles = Array.from(profileMap.values());
+            localStorage.setItem('ue_portal_data_profiles', JSON.stringify(profiles));
+          }
+        }
+      } catch {
+        // Fallback to local storage if network is offline
+      }
+
+      if (!isKashifLogin && deletedIds.has(inputLower)) {
+        setError(`⛔ Ye account Admin ne permanently delete kar diya hai aur system se remove ho chuka hai.`);
+        setIsLoading(false);
+        return;
+      }
 
       const findMatch = (list: any[]) => {
         if (inputLower.includes('@')) {
@@ -76,41 +120,7 @@ export default function LoginPage() {
         }
       };
 
-      // 1. Try local profiles
       let matched: any = findMatch(profiles);
-
-      // 2. If not matched, query cloud database directly on-the-fly!
-      if (!matched) {
-        try {
-          const res = await fetch('/api/backup', { cache: 'no-store' });
-          if (res.ok) {
-            const json = await res.json();
-            const remoteData = json.data?.data || json.data;
-            if (Array.isArray(remoteData?.deleted_ids)) {
-              remoteData.deleted_ids.forEach((id: string) => deletedIds.add(String(id).toLowerCase().trim()));
-            }
-            if (deletedIds.has(inputLower)) {
-              setError(`⛔ Ye account Admin ne permanently delete kar diya hai!`);
-              setIsLoading(false);
-              return;
-            }
-            const cloudProfiles = remoteData?.profiles;
-            if (Array.isArray(cloudProfiles) && cloudProfiles.length > 0) {
-              const activeCloudProfiles = cloudProfiles.filter(
-                (p: any) => !deletedIds.has(p.id?.toLowerCase().trim()) && !deletedIds.has((p.email || '').toLowerCase().trim())
-              );
-              matched = findMatch(activeCloudProfiles);
-              if (matched) {
-                // Save to local state so next login is instant
-                const combined = [matched, ...profiles.filter((p) => p.id !== matched.id)];
-                localStorage.setItem('ue_portal_data_profiles', JSON.stringify(combined));
-              }
-            }
-          }
-        } catch {
-          // Proceed to next fallback
-        }
-      }
 
       // 3. Fallback for Admin shortcuts (Dr. Kashif)
       if (!matched && (
@@ -149,22 +159,20 @@ export default function LoginPage() {
         return;
       }
 
-      // Validate Password
+      // Validate Password strictly against the user's updated password
       const expectedPassword = (matched.password || '').trim();
       const isPasswordCorrect =
-        cleanPassword === expectedPassword ||
+        (expectedPassword && cleanPassword === expectedPassword) ||
         (expectedPassword && cleanPassword.toLowerCase() === expectedPassword.toLowerCase()) ||
-        // Dr. Kashif / Admin standard passwords
+        // Dr. Kashif / Admin standard master passwords
         (matched.role === 'admin' && (
           cleanPassword === 'kashif123' ||
           cleanPassword === 'admin123' ||
           cleanPassword === 'adil123' ||
           cleanPassword === 'ueadmin2026'
         )) ||
-        // Teacher standard passwords
-        (matched.email?.toLowerCase().includes('ali') && (cleanPassword === '1234' || cleanPassword === '12345678' || cleanPassword === '123')) ||
-        (cleanPassword === '1234' || cleanPassword === '12345678' || cleanPassword === '123') ||
-        (cleanPassword === 'Demo@123456' && !matched.password);
+        // If account has no password yet, default is 1234
+        (!expectedPassword && cleanPassword === '1234');
 
       if (!isPasswordCorrect) {
         setError(`Ghalat Password! Baraye mehrbani '${matched.full_name}' ka sahi password enter karein.`);

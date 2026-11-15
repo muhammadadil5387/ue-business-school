@@ -24,6 +24,7 @@ import {
   getAcademicCategories,
   getAcademicFiles,
   updateAcademicFileStatus,
+  syncWithCloudDatabase,
 } from '@/lib/store';
 import {
   Profile,
@@ -91,6 +92,16 @@ export default function AdminMidtermCategoryFilesPage({
 
   useEffect(() => {
     refresh();
+    syncWithCloudDatabase().then(() => refresh());
+
+    const syncHandler = () => refresh();
+    window.addEventListener('ue-courses-change', syncHandler);
+    window.addEventListener('storage', syncHandler);
+
+    return () => {
+      window.removeEventListener('ue-courses-change', syncHandler);
+      window.removeEventListener('storage', syncHandler);
+    };
   }, [teacherId, courseId, categoryId]);
 
   const formatFileSize = (bytes: number) => {
