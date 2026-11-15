@@ -196,6 +196,15 @@ export default function FacultyManagementPage() {
 
   const handleDeleteFaculty = (faculty: Profile) => {
     if (
+      faculty.role === 'admin' ||
+      faculty.id === 'user-admin-kashif' ||
+      faculty.email?.toLowerCase() === 'drkashif@ue.edu.pk' ||
+      faculty.full_name?.toLowerCase().includes('kashif')
+    ) {
+      alert('Main Admin account (Dr. Kashif) ko delete nahi kiya ja sakta.');
+      return;
+    }
+    if (
       confirm(
         `Are you sure you want to permanently delete "${faculty.full_name}" (${faculty.email})?\nIs account ko delete karne ke baad ye login nahi kar sakein gay.`
       )
@@ -420,21 +429,6 @@ export default function FacultyManagementPage() {
                           )}
                         </button>
 
-                        {/* Start / Stop Toggle Button */}
-                        <button
-                          type="button"
-                          onClick={() => handleToggleStatus(faculty)}
-                          className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold transition shadow-xs ${
-                            faculty.is_active
-                              ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300'
-                              : 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                          }`}
-                          title={faculty.is_active ? 'Disable Login' : 'Enable Login'}
-                        >
-                          <Power className="w-3.5 h-3.5" />
-                          {faculty.is_active ? 'Stop' : 'Start'}
-                        </button>
-
                         {/* Edit Button */}
                         <button
                           type="button"
@@ -446,15 +440,39 @@ export default function FacultyManagementPage() {
                           <span>Edit</span>
                         </button>
 
-                        {/* Delete Button */}
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteFaculty(faculty)}
-                          className="inline-flex items-center gap-1 p-1.5 rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 transition"
-                          title="Delete this Faculty Account permanently"
-                        >
-                          <Trash2 className="w-3.5 h-3.5 text-rose-600" />
-                        </button>
+                        {/* If Admin Account, show protected badge; otherwise show Stop and Delete buttons */}
+                        {faculty.role === 'admin' || faculty.id === 'user-admin-kashif' || faculty.email?.toLowerCase() === 'drkashif@ue.edu.pk' ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-bold">
+                            Director / Admin
+                          </span>
+                        ) : (
+                          <>
+                            {/* Start / Stop Toggle Button */}
+                            <button
+                              type="button"
+                              onClick={() => handleToggleStatus(faculty)}
+                              className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold transition shadow-xs ${
+                                faculty.is_active
+                                  ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300'
+                                  : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                              }`}
+                              title={faculty.is_active ? 'Disable Login' : 'Enable Login'}
+                            >
+                              <Power className="w-3.5 h-3.5" />
+                              {faculty.is_active ? 'Stop' : 'Start'}
+                            </button>
+
+                            {/* Delete Button */}
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteFaculty(faculty)}
+                              className="inline-flex items-center gap-1 p-1.5 rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 transition"
+                              title="Delete this Faculty Account permanently"
+                            >
+                              <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                            </button>
+                          </>
+                        )}
                       </div>
                     </td>
                   </tr>

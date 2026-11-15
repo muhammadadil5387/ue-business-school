@@ -39,11 +39,21 @@ export default function LoginPage() {
       const inputLower = cleanInput.toLowerCase();
       const cleanPassword = (password || '').trim();
 
+      const isKashifLogin =
+        inputLower === 'drkashif@ue.edu.pk' ||
+        inputLower === 'kashif' ||
+        inputLower === 'drkashif' ||
+        inputLower === 'dr.kashif' ||
+        inputLower === 'dr kashif' ||
+        inputLower === 'admin';
+
       const deletedIds = new Set(
-        (getStored<string[]>('deleted_ids', []) || []).map((x) => String(x).toLowerCase().trim())
+        (getStored<string[]>('deleted_ids', []) || [])
+          .map((x) => String(x).toLowerCase().trim())
+          .filter((id) => id !== 'user-admin-kashif' && id !== 'drkashif@ue.edu.pk' && id !== 'kashif' && id !== 'dr.kashif')
       );
 
-      if (deletedIds.has(inputLower)) {
+      if (!isKashifLogin && deletedIds.has(inputLower)) {
         setError(`⛔ Ye account Admin ne permanently delete kar diya hai aur system se remove ho chuka hai.`);
         setIsLoading(false);
         return;
@@ -123,8 +133,10 @@ export default function LoginPage() {
       }
 
       if (
-        deletedIds.has((matched.id || '').toLowerCase().trim()) ||
-        deletedIds.has((matched.email || '').toLowerCase().trim())
+        !isKashifLogin &&
+        matched.role !== 'admin' &&
+        (deletedIds.has((matched.id || '').toLowerCase().trim()) ||
+          deletedIds.has((matched.email || '').toLowerCase().trim()))
       ) {
         setError(`⛔ Ye account '${matched.full_name}' Admin ne permanently delete kar diya hai!`);
         setIsLoading(false);

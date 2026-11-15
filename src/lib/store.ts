@@ -125,34 +125,79 @@ export function switchRole(role: 'admin' | 'teacher'): Profile {
 // -----------------------------------------------------------------------------
 // Profiles API
 // -----------------------------------------------------------------------------
-export function getProfiles(): Profile[] {
-  let stored = getStored<Profile[]>('profiles', INITIAL_PROFILES);
 
-  // Filter out any profile that was deleted permanently
+export const PRIMARY_KASHIF_ADMIN: Profile = {
+  id: 'user-admin-kashif',
+  email: 'drkashif@ue.edu.pk',
+  full_name: 'Dr. Kashif',
+  role: 'admin',
+  password: 'kashif123',
+  designation: 'Campus Director / Head of Department',
+  department: 'UE Business School',
+  phone: '+92 300 1234567',
+  is_active: true,
+  created_at: '2026-08-01T08:00:00Z',
+};
+
+// Clean slate reset requested by user: Keep ONLY Dr. Kashif as Admin, wipe all other demo teachers & courses
+const CLEAN_SLATE_RESET_KEY = 'ue_clean_slate_dr_kashif_v2';
+if (typeof window !== 'undefined' && !localStorage.getItem(STORAGE_KEY_PREFIX + CLEAN_SLATE_RESET_KEY)) {
+  try {
+    localStorage.setItem(STORAGE_KEY_PREFIX + 'profiles', JSON.stringify([PRIMARY_KASHIF_ADMIN]));
+    localStorage.setItem(STORAGE_KEY_PREFIX + 'teacher_courses', JSON.stringify([]));
+    localStorage.setItem(STORAGE_KEY_PREFIX + 'academic_categories', JSON.stringify([]));
+    localStorage.setItem(STORAGE_KEY_PREFIX + 'academic_files', JSON.stringify([]));
+    localStorage.setItem(STORAGE_KEY_PREFIX + 'course_coverage_reports', JSON.stringify([]));
+    localStorage.setItem(STORAGE_KEY_PREFIX + 'teaching_activities', JSON.stringify([]));
+    localStorage.setItem(STORAGE_KEY_PREFIX + 'additional_activities', JSON.stringify([]));
+    localStorage.setItem(STORAGE_KEY_PREFIX + 'submissions', JSON.stringify([]));
+    localStorage.setItem(STORAGE_KEY_PREFIX + 'assignments', JSON.stringify([]));
+    localStorage.setItem(STORAGE_KEY_PREFIX + 'assignment_teachers', JSON.stringify([]));
+    localStorage.setItem(STORAGE_KEY_PREFIX + 'audit_logs', JSON.stringify([]));
+    localStorage.setItem(STORAGE_KEY_PREFIX + 'deleted_ids', JSON.stringify([]));
+    localStorage.setItem(STORAGE_KEY_PREFIX + 'current_user', JSON.stringify(PRIMARY_KASHIF_ADMIN));
+    localStorage.setItem(STORAGE_KEY_PREFIX + CLEAN_SLATE_RESET_KEY, 'done');
+
+    fetch('/api/backup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        reset_to_kashif: true,
+        data: {
+          profiles: [PRIMARY_KASHIF_ADMIN],
+          teacher_courses: [],
+          academic_categories: [],
+          academic_files: [],
+          course_coverage_reports: [],
+          teaching_activities: [],
+          additional_activities: [],
+          submissions: [],
+          assignments: [],
+          assignment_teachers: [],
+          audit_logs: [],
+          deleted_ids: [],
+        },
+      }),
+    }).catch(() => {});
+  } catch {
+    // Ignore initial storage errors
+  }
+}
+
+export function getProfiles(): Profile[] {
+  let stored = getStored<Profile[]>('profiles', [PRIMARY_KASHIF_ADMIN]);
+
+  // Filter out any profile that was deleted permanently, BUT NEVER delete Dr. Kashif / Admin!
+  const rawDeleted = getStored<string[]>('deleted_ids', []);
   const deletedIds = new Set(
-    (getStored<string[]>('deleted_ids', []) || []).map((x) => String(x).toLowerCase().trim())
+    rawDeleted
+      .map((x) => String(x).toLowerCase().trim())
+      .filter((id) => id !== 'user-admin-kashif' && id !== 'drkashif@ue.edu.pk' && id !== 'kashif' && id !== 'dr.kashif')
   );
+
   stored = stored.filter(
     (p) => !deletedIds.has((p.id || '').toLowerCase().trim()) && !deletedIds.has((p.email || '').toLowerCase().trim())
   );
-
-  // 1. Upgrade any old Adil admin account to Dr. Kashif as requested
-  let profileChanged = false;
-  stored = stored.map((p) => {
-    if (p.role === 'admin' && (p.id === 'user-admin-adil' || p.full_name?.toLowerCase().includes('adil'))) {
-      profileChanged = true;
-      return {
-        ...p,
-        id: 'user-admin-kashif',
-        full_name: 'Dr. Kashif',
-        email: 'drkashif@ue.edu.pk',
-        password: 'kashif123',
-        designation: 'Campus Director / Head of Department',
-        is_active: true,
-      };
-    }
-    return p;
-  });
 
   // Ensure Dr. Kashif admin account is present with active admin role and password kashif123
   let kashifProfile = stored.find(
@@ -162,31 +207,12 @@ export function getProfiles(): Profile[] {
       p.id === 'user-admin-kashif' ||
       p.full_name?.toLowerCase() === 'dr. kashif'
   );
-  if (!kashifProfile) {
-    const newKashif: Profile = {
-      id: 'user-admin-kashif',
-      email: 'drkashif@ue.edu.pk',
-      full_name: 'Dr. Kashif',
-      role: 'admin',
-      password: 'kashif123',
-      designation: 'Campus Director / Head of Department',
-      department: 'UE Business School',
-      phone: '+92 300 1234567',
-      is_active: true,
-      created_at: new Date().toISOString(),
-    };
-    stored = [newKashif, ...stored];
-    kashifProfile = newKashif;
-    profileChanged = true;
-  }
 
-  if (profileChanged && typeof window !== 'undefined') {
-    localStorage.setItem(STORAGE_KEY_PREFIX + 'profiles', JSON.stringify(stored));
-    // Also update current active session if currently set to old admin
-    const curr = getStored<Profile | null>('current_user', null);
-    if (curr && curr.role === 'admin' && (curr.id === 'user-admin-adil' || curr.full_name?.toLowerCase().includes('adil'))) {
-      localStorage.setItem(STORAGE_KEY_PREFIX + 'current_user', JSON.stringify(kashifProfile));
-      window.dispatchEvent(new Event('ue-auth-change'));
+  if (!kashifProfile) {
+    stored = [PRIMARY_KASHIF_ADMIN, ...stored.filter((p) => p.role !== 'admin')];
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(STORAGE_KEY_PREFIX + 'profiles', JSON.stringify(stored));
+      localStorage.setItem(STORAGE_KEY_PREFIX + 'current_user', JSON.stringify(PRIMARY_KASHIF_ADMIN));
     }
   }
 
@@ -234,6 +260,15 @@ export function createFaculty(faculty: Omit<Profile, 'id' | 'created_at'>): Prof
 
 export function toggleFacultyStatus(id: string): void {
   const profiles = getProfiles();
+  const target = profiles.find((p) => p.id === id);
+  if (
+    target?.role === 'admin' ||
+    id === 'user-admin-kashif' ||
+    target?.email?.toLowerCase() === 'drkashif@ue.edu.pk'
+  ) {
+    console.warn('Dr. Kashif (Primary Admin) cannot be deactivated.');
+    return;
+  }
   const updated = profiles.map((p) =>
     p.id === id ? { ...p, is_active: !p.is_active } : p
   );
@@ -241,9 +276,9 @@ export function toggleFacultyStatus(id: string): void {
   logAudit('TOGGLE_FACULTY_STATUS', 'profile', id, {});
 
   // If currently active user was just stopped/deactivated, kick them out immediately!
-  const target = updated.find((p) => p.id === id);
+  const updatedTarget = updated.find((p) => p.id === id);
   const current = getCurrentUser();
-  if (current && target && !target.is_active && (current.id === id || current.email?.toLowerCase() === target.email?.toLowerCase())) {
+  if (current && updatedTarget && !updatedTarget.is_active && (current.id === id || current.email?.toLowerCase() === updatedTarget.email?.toLowerCase())) {
     localStorage.removeItem(STORAGE_KEY_PREFIX + 'current_user');
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new Event('ue-auth-change'));
@@ -297,6 +332,16 @@ export function updateFaculty(id: string, updates: Partial<Profile>): Profile | 
 export function deleteFaculty(id: string): void {
   const profiles = getProfiles();
   const target = profiles.find((p) => p.id === id);
+  if (
+    !target ||
+    target.role === 'admin' ||
+    id === 'user-admin-kashif' ||
+    target.email?.toLowerCase() === 'drkashif@ue.edu.pk' ||
+    target.full_name?.toLowerCase().includes('kashif')
+  ) {
+    console.warn('Dr. Kashif (Primary Admin) cannot be deleted.');
+    return;
+  }
   const updated = profiles.filter((p) => p.id !== id);
   setStored('profiles', updated);
 
@@ -880,86 +925,8 @@ export function resetStore(): void {
 // FACULTY ACADEMIC RECORD MANAGEMENT SYSTEM
 // =============================================================================
 
-// Seed data for teacher courses
-const INITIAL_TEACHER_COURSES: TeacherCourse[] = [
-  {
-    id: 'tc-001', teacher_id: 'user-teacher-001',
-    subject_name: 'Principles of Management', subject_code: 'MGT-101',
-    program: 'BBA', class_section: 'BBA 1st Morning A',
-    semester_number: 1, academic_year: '2026', term: 'Fall',
-    created_at: '2026-08-01T00:00:00Z',
-  },
-  {
-    id: 'tc-002', teacher_id: 'user-teacher-001',
-    subject_name: 'Business Communication', subject_code: 'ENG-102',
-    program: 'BBA', class_section: 'BBA 1st Evening B',
-    semester_number: 1, academic_year: '2026', term: 'Fall',
-    created_at: '2026-08-01T00:00:00Z',
-  },
-  {
-    id: 'tc-003', teacher_id: 'user-teacher-002',
-    subject_name: 'Financial Accounting', subject_code: 'ACC-201',
-    program: 'BBA', class_section: 'BBA 2nd Morning B',
-    semester_number: 2, academic_year: '2026', term: 'Fall',
-    created_at: '2026-08-01T00:00:00Z',
-  },
-  {
-    id: 'tc-004', teacher_id: 'user-teacher-002',
-    subject_name: 'Marketing Research', subject_code: 'MKT-301',
-    program: 'BBA', class_section: 'BBA 3rd Morning A',
-    semester_number: 3, academic_year: '2026', term: 'Fall',
-    created_at: '2026-08-01T00:00:00Z',
-  },
-  {
-    id: 'tc-005', teacher_id: 'user-teacher-003',
-    subject_name: 'Business Research Methods', subject_code: 'RES-401',
-    program: 'BBA', class_section: 'BBA 4th Morning A',
-    semester_number: 4, academic_year: '2026', term: 'Fall',
-    created_at: '2026-08-01T00:00:00Z',
-  },
-  {
-    id: 'tc-006', teacher_id: 'user-teacher-001',
-    subject_name: 'Organizational Behavior', subject_code: 'MGT-201',
-    program: 'BBA', class_section: 'BBA 2nd Morning A',
-    semester_number: 2, academic_year: '2026', term: 'Spring',
-    created_at: '2026-08-01T00:00:00Z',
-  },
-  {
-    id: 'tc-ali-001', teacher_id: 'user-teacher-ali',
-    subject_name: 'Introduction to Business', subject_code: 'BUSA1111',
-    program: 'BBA', class_section: 'BBA 1st Morning A',
-    semester_number: 1, academic_year: '2026', term: 'Fall',
-    created_at: '2026-08-01T00:00:00Z',
-  },
-  {
-    id: 'tc-ali-002', teacher_id: 'user-teacher-ali',
-    subject_name: 'Financial Accounting', subject_code: 'ACC-201',
-    program: 'BBA', class_section: 'BBA 2nd Morning B',
-    semester_number: 2, academic_year: '2026', term: 'Fall',
-    created_at: '2026-08-01T00:00:00Z',
-  },
-  {
-    id: 'tc-adil-001', teacher_id: 'user-teacher-adil',
-    subject_name: 'Quantitative Methods & Decisions', subject_code: 'BUSA 7136',
-    program: 'MBA', class_section: 'MBA 1st Evening A',
-    semester_number: 1, academic_year: '2026', term: 'Fall',
-    created_at: '2026-08-01T00:00:00Z',
-  },
-  {
-    id: 'tc-aliraza-001', teacher_id: 'user-teacher-aliraza',
-    subject_name: 'Financial Management', subject_code: 'FIN-301',
-    program: 'BBA', class_section: 'BBA 5th Morning A',
-    semester_number: 5, academic_year: '2026', term: 'Fall',
-    created_at: '2026-08-01T00:00:00Z',
-  },
-  {
-    id: 'tc-aliraza-002', teacher_id: 'user-teacher-aliraza',
-    subject_name: 'Business Finance', subject_code: 'FIN-201',
-    program: 'BBA', class_section: 'BBA 3rd Evening B',
-    semester_number: 3, academic_year: '2026', term: 'Fall',
-    created_at: '2026-08-01T00:00:00Z',
-  },
-];
+// Seed data for teacher courses (starts clean and empty)
+const INITIAL_TEACHER_COURSES: TeacherCourse[] = [];
 
 function buildDefaultCategories(teacherCourseId: string, section: 'midterm' | 'final'): AcademicCategory[] {
   const names = section === 'midterm' ? PREDEFINED_MIDTERM_CATEGORIES : PREDEFINED_FINAL_CATEGORIES;

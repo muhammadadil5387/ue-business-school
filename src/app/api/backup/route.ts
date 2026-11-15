@@ -81,7 +81,9 @@ export async function GET() {
 
       // Strip any permanently deleted IDs so deleted users and courses never resurrect!
       const existingDeleted = new Set<string>(
-        (Array.isArray(kvExt.deleted_ids) ? kvExt.deleted_ids : []).map((x: any) => String(x).toLowerCase().trim())
+        (Array.isArray(kvExt.deleted_ids) ? kvExt.deleted_ids : [])
+          .map((x: any) => String(x).toLowerCase().trim())
+          .filter((id: string) => id !== 'user-admin-kashif' && id !== 'drkashif@ue.edu.pk' && id !== 'kashif' && id !== 'dr.kashif')
       );
       if (existingDeleted.size > 0) {
         const ALL_KEYS = ['profiles', 'teacher_courses', 'course_coverage_reports', 'academic_files', 'academic_categories'] as const;
@@ -92,6 +94,27 @@ export async function GET() {
             if (kvExt[k].length < beforeCount) dataChanged = true;
           }
         }
+      }
+
+      // Always guarantee Dr. Kashif exists as Main Admin
+      const hasKashif = Array.isArray(kvExt.profiles) && kvExt.profiles.some(
+        (p: any) => p.email?.toLowerCase() === 'drkashif@ue.edu.pk' || p.id === 'user-admin-kashif'
+      );
+      if (!hasKashif) {
+        const kashifObj = {
+          id: 'user-admin-kashif',
+          email: 'drkashif@ue.edu.pk',
+          full_name: 'Dr. Kashif',
+          role: 'admin',
+          password: 'kashif123',
+          designation: 'Campus Director / Head of Department',
+          department: 'UE Business School',
+          phone: '+92 300 1234567',
+          is_active: true,
+          created_at: '2026-08-01T08:00:00Z',
+        };
+        kvExt.profiles = [kashifObj, ...(Array.isArray(kvExt.profiles) ? kvExt.profiles : [])];
+        dataChanged = true;
       }
 
       if (dataChanged) {
@@ -159,6 +182,55 @@ function extractStoreData(obj: any): any {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
+
+    const KASHIF_ADMIN_OBJ = {
+      id: 'user-admin-kashif',
+      email: 'drkashif@ue.edu.pk',
+      full_name: 'Dr. Kashif',
+      role: 'admin',
+      password: 'kashif123',
+      designation: 'Campus Director / Head of Department',
+      department: 'UE Business School',
+      phone: '+92 300 1234567',
+      is_active: true,
+      created_at: '2026-08-01T08:00:00Z',
+    };
+
+    // User requested full reset: Only Dr. Kashif as Admin, wipe all other teachers and dummy data
+    if (body.reset_to_kashif) {
+      const resetDatabase = {
+        exported_at: new Date().toISOString(),
+        institution: 'University of Education, Lahore (Faisalabad Campus)',
+        department: 'UE Business School',
+        portal_version: '1.0.0',
+        data: {
+          profiles: [KASHIF_ADMIN_OBJ],
+          teacher_courses: [],
+          academic_categories: [],
+          academic_files: [],
+          course_coverage_reports: [],
+          teaching_activities: [],
+          additional_activities: [],
+          submissions: [],
+          assignments: [],
+          assignment_teachers: [],
+          audit_logs: [],
+          deleted_ids: [],
+        },
+      };
+      globalThis.__PORTAL_SHARED_DB = resetDatabase;
+      await saveToVercelKV(resetDatabase);
+      try {
+        if (!fs.existsSync(BACKUPS_DIR)) fs.mkdirSync(BACKUPS_DIR, { recursive: true });
+        fs.writeFileSync(BACKUP_FILE, JSON.stringify(resetDatabase, null, 2), 'utf-8');
+      } catch {}
+      return NextResponse.json({
+        success: true,
+        message: 'System cleanly reset: Only Dr. Kashif admin active',
+        savedAt: resetDatabase.exported_at,
+      });
+    }
+
     const incomingPayload = body.data || body;
     const incoming = extractStoreData(incomingPayload);
 
@@ -178,6 +250,12 @@ export async function POST(req: NextRequest) {
       .map((x: any) => String(x).toLowerCase().trim())
       .filter(Boolean);
     const allDeletedSet = new Set<string>([...existingDeleted, ...incomingDeleted]);
+
+    // NEVER allow Dr. Kashif to be deleted
+    allDeletedSet.delete('user-admin-kashif');
+    allDeletedSet.delete('drkashif@ue.edu.pk');
+    allDeletedSet.delete('kashif');
+    allDeletedSet.delete('dr.kashif');
 
     const MERGE_COLLECTIONS = [
       'teacher_courses',
@@ -237,6 +315,15 @@ export async function POST(req: NextRequest) {
       });
 
       mergedData[key] = Array.from(map.values());
+    }
+
+    // Guarantee Dr. Kashif is always in mergedData.profiles as Main Admin
+    if (Array.isArray(mergedData.profiles)) {
+      if (!mergedData.profiles.some((p: any) => p.email?.toLowerCase() === 'drkashif@ue.edu.pk' || p.id === 'user-admin-kashif')) {
+        mergedData.profiles = [KASHIF_ADMIN_OBJ, ...mergedData.profiles];
+      }
+    } else {
+      mergedData.profiles = [KASHIF_ADMIN_OBJ];
     }
 
     const finalDatabase = {
