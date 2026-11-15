@@ -254,12 +254,14 @@ export default function AdminMidtermCategoryFilesPage({
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {files.map((file) => {
-                  const meta = ACADEMIC_FILE_STATUS_META[file.status] || {
-                    label: file.status,
+                  if (!file || !file.id) return null;
+                  const status = file.status || 'submitted';
+                  const meta = ACADEMIC_FILE_STATUS_META[status] || {
+                    label: status,
                     color: 'bg-slate-100 text-slate-700',
                   };
 
-                  const canModerate = file.status !== 'not_submitted';
+                  const canModerate = status !== 'not_submitted';
 
                   return (
                     <tr key={file.id} className="hover:bg-slate-50/70 transition">

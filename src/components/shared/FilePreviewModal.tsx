@@ -78,19 +78,24 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
           const rawBase64 = parts[1].trim();
           const mimeMatch = parts[0].match(/:(.*?);/);
           const detectedMime = mimeMatch ? mimeMatch[1] : (file.mime_type || 'application/octet-stream');
-          const binary = atob(rawBase64);
-          const bytes = new Uint8Array(binary.length);
-          for (let i = 0; i < binary.length; i++) {
-            bytes[i] = binary.charCodeAt(i);
-          }
-          const blob = new Blob([bytes], { type: detectedMime });
-          const url = URL.createObjectURL(blob);
-          setBlobUrl(url);
-          setIsPdfValid(rawBase64.startsWith('JVBERi') || detectedMime.includes('pdf'));
+          try {
+            const binary = atob(rawBase64);
+            const bytes = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i++) {
+              bytes[i] = binary.charCodeAt(i);
+            }
+            const blob = new Blob([bytes], { type: detectedMime });
+            const url = URL.createObjectURL(blob);
+            setBlobUrl(url);
+            setIsPdfValid(rawBase64.startsWith('JVBERi') || detectedMime.includes('pdf'));
 
-          return () => {
-            URL.revokeObjectURL(url);
-          };
+            return () => {
+              URL.revokeObjectURL(url);
+            };
+          } catch {
+            setBlobUrl(file.file_data);
+            setIsPdfValid(detectedMime.includes('pdf'));
+          }
         }
       }
     } catch (err) {

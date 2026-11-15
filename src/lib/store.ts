@@ -972,7 +972,7 @@ export function getTeacherCourses(teacherId?: string): TeacherCourse[] {
   const deletedIds = new Set(
     (getStored<string[]>('deleted_ids', []) || []).map((x) => String(x).toLowerCase().trim())
   );
-  courses = courses.filter((c) => !deletedIds.has(c.id.toLowerCase().trim()));
+  courses = (courses || []).filter((c) => c && c.id && !deletedIds.has(String(c.id).toLowerCase().trim()));
   if (!teacherId) return courses;
 
   // Resolve all alias IDs for this teacher (match by id, email, or exact full_name)
@@ -1085,15 +1085,15 @@ export function deleteTeacherCourse(id: string): void {
 export function getAcademicCategories(teacherCourseId: string, section?: 'midterm' | 'final' | 'course_coverage'): AcademicCategory[] {
   const stored = getStored<AcademicCategory[]>('academic_categories', []);
   // Auto-seed default categories if none exist for this course+section
-  let courseCategories = stored.filter((c) => c.teacher_course_id === teacherCourseId);
+  let courseCategories = (stored || []).filter((c) => c && c.teacher_course_id === teacherCourseId);
   if (courseCategories.length === 0) {
     const midCats = buildDefaultCategories(teacherCourseId, 'midterm');
     const finalCats = buildDefaultCategories(teacherCourseId, 'final');
-    const all = [...stored, ...midCats, ...finalCats];
+    const all = [...(stored || []), ...midCats, ...finalCats];
     setStored('academic_categories', all);
     courseCategories = [...midCats, ...finalCats];
   }
-  if (section) return courseCategories.filter((c) => c.section === section);
+  if (section) return courseCategories.filter((c) => c && c.section === section);
   return courseCategories;
 }
 
@@ -1155,7 +1155,9 @@ export function getAcademicFiles(categoryId: string): AcademicFile[] {
   const deletedIds = new Set(
     (getStored<string[]>('deleted_ids', []) || []).map((x) => String(x).toLowerCase().trim())
   );
-  return files.filter((f) => f.category_id === categoryId && !deletedIds.has(f.id.toLowerCase().trim()));
+  return (files || []).filter(
+    (f) => f && f.id && f.category_id === categoryId && !deletedIds.has(String(f.id).toLowerCase().trim())
+  );
 }
 
 export function getAllAcademicFilesForCourse(teacherCourseId: string): AcademicFile[] {
@@ -1163,7 +1165,9 @@ export function getAllAcademicFilesForCourse(teacherCourseId: string): AcademicF
   const deletedIds = new Set(
     (getStored<string[]>('deleted_ids', []) || []).map((x) => String(x).toLowerCase().trim())
   );
-  return files.filter((f) => f.teacher_course_id === teacherCourseId && !deletedIds.has(f.id.toLowerCase().trim()));
+  return (files || []).filter(
+    (f) => f && f.id && f.teacher_course_id === teacherCourseId && !deletedIds.has(String(f.id).toLowerCase().trim())
+  );
 }
 
 export function uploadAcademicFile(data: Omit<AcademicFile, 'id' | 'uploaded_at' | 'status'>): AcademicFile {

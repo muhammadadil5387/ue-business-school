@@ -59,6 +59,8 @@ export default function LoginPage() {
         return;
       }
 
+      let profiles: any[] = getProfiles();
+
       // 1. Always fetch latest cloud database on login attempt to ensure newly created users,
       // updated passwords, and deletions are synchronized across all devices immediately!
       try {
