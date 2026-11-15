@@ -9,7 +9,9 @@ import {
   getAllAcademicFilesForCourse,
   getCourseCoverageReport,
 } from '@/lib/store';
-import { TeacherCourse, AcademicFile, AcademicFileStatus, ACADEMIC_FILE_STATUS_META } from '@/lib/types';
+import { TeacherCourse, AcademicFile, AcademicCategory, AcademicFileStatus, ACADEMIC_FILE_STATUS_META } from '@/lib/types';
+import { Printer } from 'lucide-react';
+import { printCoursePortfolio } from '@/lib/coursePortfolioPrinter';
 
 interface PageProps {
   params: { year: string; term: string; courseId: string };
@@ -34,6 +36,8 @@ export default function CourseDetailPage({ params }: PageProps) {
   const [loading, setLoading] = useState(true);
   const [midtermFiles, setMidtermFiles] = useState<AcademicFile[]>([]);
   const [finalFiles, setFinalFiles] = useState<AcademicFile[]>([]);
+  const [midtermCategories, setMidtermCategories] = useState<AcademicCategory[]>([]);
+  const [finalCategories, setFinalCategories] = useState<AcademicCategory[]>([]);
   const [midtermCatCount, setMidtermCatCount] = useState(0);
   const [finalCatCount, setFinalCatCount] = useState(0);
   const [coverageReport, setCoverageReport] = useState<ReturnType<typeof getCourseCoverageReport>>(null);
@@ -48,6 +52,8 @@ export default function CourseDetailPage({ params }: PageProps) {
       const allFiles = getAllAcademicFilesForCourse(courseId);
       const midCats = getAcademicCategories(courseId, 'midterm');
       const finalCats = getAcademicCategories(courseId, 'final');
+      setMidtermCategories(midCats);
+      setFinalCategories(finalCats);
       const midCatIds = new Set(midCats.map(cat => cat.id));
       const finalCatIds = new Set(finalCats.map(cat => cat.id));
       setMidtermCatCount(midCats.length);
@@ -58,6 +64,19 @@ export default function CourseDetailPage({ params }: PageProps) {
     }
     setLoading(false);
   }, [courseId]);
+
+  const handlePrintPortfolio = () => {
+    if (!course) return;
+    printCoursePortfolio({
+      course,
+      teacher: currentUser,
+      coverageReport,
+      midtermCategories,
+      midtermFiles,
+      finalCategories,
+      finalFiles,
+    });
+  };
 
   if (loading) {
     return (
@@ -196,7 +215,17 @@ export default function CourseDetailPage({ params }: PageProps) {
 
       {/* Section folder cards */}
       <div>
-        <h2 className="text-base font-semibold text-slate-700 mb-4">Course Sections</h2>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+          <h2 className="text-base font-semibold text-slate-700">Course Sections</h2>
+          <button
+            onClick={handlePrintPortfolio}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-bold shadow transition shrink-0"
+            title="Print complete course dossier: Course Coverage Report + Midterm Files + Final Files"
+          >
+            <Printer className="w-4 h-4 text-emerald-200" />
+            <span>Print Course Dossier</span>
+          </button>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
           {sections.map((section) => (
             <div key={section.key} className={`border ${section.borderColor} ${section.bgColor} rounded-xl p-5 flex flex-col`}>

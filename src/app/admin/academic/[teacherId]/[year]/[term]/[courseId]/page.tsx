@@ -12,6 +12,7 @@ import {
   Clock,
   CheckCircle,
   FileCheck2,
+  Printer,
 } from 'lucide-react';
 import {
   getProfiles,
@@ -24,10 +25,12 @@ import {
   Profile,
   TeacherCourse,
   AcademicFile,
+  AcademicCategory,
   CourseCoverageReport,
   ACADEMIC_FILE_STATUS_META,
 } from '@/lib/types';
 import { Breadcrumb, BreadcrumbItem } from '@/components/shared/Breadcrumb';
+import { printCoursePortfolio } from '@/lib/coursePortfolioPrinter';
 
 export default function CourseSectionsPage({
   params: routeParams,
@@ -48,6 +51,8 @@ export default function CourseSectionsPage({
 
   const [teacher, setTeacher] = useState<Profile | null>(null);
   const [course, setCourse] = useState<TeacherCourse | null>(null);
+  const [midtermCategories, setMidtermCategories] = useState<AcademicCategory[]>([]);
+  const [finalCategories, setFinalCategories] = useState<AcademicCategory[]>([]);
   const [midtermFiles, setMidtermFiles] = useState<AcademicFile[]>([]);
   const [finalFiles, setFinalFiles] = useState<AcademicFile[]>([]);
   const [coverageReport, setCoverageReport] = useState<CourseCoverageReport | null>(null);
@@ -63,6 +68,8 @@ export default function CourseSectionsPage({
     // Categories
     const midCats = getAcademicCategories(courseId, 'midterm');
     const finalCats = getAcademicCategories(courseId, 'final');
+    setMidtermCategories(midCats);
+    setFinalCategories(finalCats);
     const midCatIds = new Set(midCats.map((m) => m.id));
     const finalCatIds = new Set(finalCats.map((f) => f.id));
 
@@ -73,6 +80,19 @@ export default function CourseSectionsPage({
     const report = getCourseCoverageReport(courseId);
     setCoverageReport(report);
   }, [teacherId, courseId]);
+
+  const handlePrintPortfolio = () => {
+    if (!course) return;
+    printCoursePortfolio({
+      course,
+      teacher,
+      coverageReport,
+      midtermCategories,
+      midtermFiles,
+      finalCategories,
+      finalFiles,
+    });
+  };
 
   if (!course) {
     return (
@@ -137,11 +157,19 @@ export default function CourseSectionsPage({
         </div>
       </div>
 
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h2 className="text-sm font-bold text-slate-800">Academic Sections</h2>
           <p className="text-xs text-slate-500 mt-0.5">Select a section to inspect categories, submitted files, or course coverage.</p>
         </div>
+        <button
+          onClick={handlePrintPortfolio}
+          className="inline-flex items-center gap-2 px-4 py-2.5 bg-ue-navy hover:bg-blue-900 text-white rounded-xl text-xs font-bold shadow-md transition shrink-0"
+          title="Print complete dossier: Course Coverage Report + Midterm Files + Final Files"
+        >
+          <Printer className="w-4 h-4 text-ue-gold" />
+          <span>Print Complete Course Dossier</span>
+        </button>
       </div>
 
       {/* 3 Section Cards */}
