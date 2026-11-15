@@ -41,11 +41,12 @@ export const TopNav: React.FC<TopNavProps> = ({ onToggleMobileSidebar }) => {
     const handler = () => setUser(getCurrentUser());
     window.addEventListener('ue-auth-change', handler);
 
-    // Global cross-device background sync
+    // Global cross-device background sync (optimized for performance)
     syncWithCloudDatabase();
     const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return;
       syncWithCloudDatabase();
-    }, 20000);
+    }, 30000);
     const focusHandler = () => {
       syncWithCloudDatabase();
     };

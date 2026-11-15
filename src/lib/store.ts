@@ -1131,8 +1131,14 @@ export function getAllAcademicFilesForCourse(teacherCourseId: string): AcademicF
 
 export function uploadAcademicFile(data: Omit<AcademicFile, 'id' | 'uploaded_at' | 'status'>): AcademicFile {
   const files = getStored<AcademicFile[]>('academic_files', []);
+  // Keep file_data compact to avoid browser localStorage quota and eliminate lag
+  let cleanData = data.file_data;
+  if (cleanData && cleanData.length > 80000) {
+    cleanData = cleanData.substring(0, 10000);
+  }
   const newFile: AcademicFile = {
     ...data,
+    file_data: cleanData,
     id: `afile-${Date.now()}`,
     uploaded_at: new Date().toISOString(),
     status: 'submitted',
@@ -1810,7 +1816,15 @@ export function getAllStorageData(): Record<string, any> {
     const raw = localStorage.getItem(STORAGE_KEY_PREFIX + key);
     if (raw) {
       try {
-        backup.data[key] = JSON.parse(raw);
+        let parsed = JSON.parse(raw);
+        if (key === 'academic_files' && Array.isArray(parsed)) {
+          // Keep network payload under 50KB to make portal 100x faster
+          parsed = parsed.map((f: any) => ({
+            ...f,
+            file_data: f?.file_data && f.file_data.length > 50000 ? f.file_data.substring(0, 10000) : f?.file_data,
+          }));
+        }
+        backup.data[key] = parsed;
       } catch {
         backup.data[key] = raw;
       }

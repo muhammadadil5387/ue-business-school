@@ -213,10 +213,11 @@ export default function AdminDashboardPage() {
     };
     window.addEventListener('focus', handleFocus);
 
-    // Auto-check for new submissions every 15 seconds
+    // Auto-check for new submissions every 30 seconds when active
     const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return;
       syncWithCloudDatabase().then(() => refresh());
-    }, 15000);
+    }, 30000);
 
     return () => {
       window.removeEventListener('ue-courses-change', handleSync);

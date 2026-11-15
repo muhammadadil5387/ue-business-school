@@ -86,7 +86,10 @@ export default function CentralizedReportingPage() {
     };
 
     syncData();
-    const interval = setInterval(syncData, 15000);
+    const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return;
+      syncData();
+    }, 30000);
     const handleStorage = () => syncData();
 
     window.addEventListener('storage', handleStorage);
