@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
 import path from 'path';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 // Support both local disk, Vercel KV, and serverless memory
 const IS_SERVERLESS = process.env.VERCEL === '1' || process.env.NODE_ENV === 'production';
 const BASE_DIR = IS_SERVERLESS ? '/tmp' : process.cwd();

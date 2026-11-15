@@ -18,6 +18,7 @@ export default function LoginPage() {
   useEffect(() => {
     if (typeof window !== 'undefined' && window.location.search.includes('deactivated=1')) {
       setDeactivatedNotice(true);
+      window.history.replaceState({}, '', window.location.pathname);
     }
     // Ensure all fresh faculty accounts created in Admin are synced from cloud
     syncWithCloudDatabase();
@@ -156,8 +157,9 @@ export default function LoginPage() {
         return;
       }
 
-      if (!matched.is_active) {
-        setError(`⛔ Ye account '${matched.full_name}' Admin ne Deactivate kiya hua hai! Login allowed nahi hai.`);
+      const isActive = matched.is_active !== false && matched.is_active !== 'false';
+      if (!isActive) {
+        setError(`⛔ Ye account '${matched.full_name}' Admin ne Deactivate / Stop kiya hua hai! Login allowed nahi hai.`);
         setIsLoading(false);
         return;
       }

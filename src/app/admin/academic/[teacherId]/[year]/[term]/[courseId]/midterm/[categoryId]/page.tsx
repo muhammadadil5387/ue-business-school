@@ -104,24 +104,27 @@ export default function AdminMidtermCategoryFilesPage({
     };
   }, [teacherId, courseId, categoryId]);
 
-  const formatFileSize = (bytes: number) => {
-    if (!bytes) return '0 KB';
-    if (bytes >= 1024 * 1024) {
-      return (bytes / 1024 / 1024).toFixed(2) + ' MB';
+  const formatFileSize = (bytes?: number) => {
+    if (!bytes || isNaN(Number(bytes)) || Number(bytes) <= 0) return '0 KB';
+    const num = Number(bytes);
+    if (num >= 1024 * 1024) {
+      return (num / 1024 / 1024).toFixed(2) + ' MB';
     }
-    return (bytes / 1024).toFixed(0) + ' KB';
+    return (num / 1024).toFixed(0) + ' KB';
   };
 
-  const formatDate = (dateStr: string) => {
+  const formatDate = (dateStr?: string) => {
     if (!dateStr) return 'N/A';
     try {
-      return new Date(dateStr).toLocaleDateString('en-PK', {
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return String(dateStr);
+      return d.toLocaleDateString('en-US', {
         day: '2-digit',
         month: 'short',
         year: 'numeric',
       });
     } catch {
-      return dateStr;
+      return String(dateStr);
     }
   };
 
@@ -197,9 +200,9 @@ export default function AdminMidtermCategoryFilesPage({
     { label: 'Faculty Academic Records', href: '/admin/academic' },
     { label: teacher?.full_name || 'Teacher', href: `/admin/academic/${teacherId}` },
     { label: `${year} ${term}`, href: `/admin/academic/${teacherId}/${year}/${term}` },
-    { label: course.subject_name, href: `/admin/academic/${teacherId}/${year}/${term}/${courseId}` },
+    { label: course.subject_name || 'Course', href: `/admin/academic/${teacherId}/${year}/${term}/${courseId}` },
     { label: 'Midterm', href: `/admin/academic/${teacherId}/${year}/${term}/${courseId}/midterm` },
-    { label: category.name },
+    { label: category.name || 'Category' },
   ];
 
   return (
@@ -219,11 +222,11 @@ export default function AdminMidtermCategoryFilesPage({
             <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-ue-navy/10 text-ue-navy">
               Midterm
             </span>
-            <h1 className="text-lg font-bold text-ue-navy">{category.name}</h1>
+            <h1 className="text-lg font-bold text-ue-navy">{category.name || 'Category'}</h1>
           </div>
           <p className="text-xs text-slate-500 mt-1">
-            Course: <span className="font-semibold text-slate-700">{course.subject_name}</span> ({course.subject_code}) • Faculty:{' '}
-            <span className="font-semibold text-slate-700">{teacher?.full_name}</span>
+            Course: <span className="font-semibold text-slate-700">{course.subject_name || 'Course'}</span> ({course.subject_code || ''}) • Faculty:{' '}
+            <span className="font-semibold text-slate-700">{teacher?.full_name || 'Faculty Member'}</span>
           </p>
         </div>
         <div className="text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 shrink-0">
