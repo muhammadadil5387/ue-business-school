@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { GraduationCap, Shield, User, ArrowRight, Lock, Mail, AlertCircle } from 'lucide-react';
-import { setCurrentUser, getProfiles, getCurrentUser, syncWithCloudDatabase } from '@/lib/store';
+import { setCurrentUser, getProfiles, getCurrentUser, syncWithCloudDatabase, getStored } from '@/lib/store';
 import { isSupabaseConfigured, createClient } from '@/lib/supabase/client';
 
 export default function LoginPage() {
