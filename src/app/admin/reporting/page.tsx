@@ -11,6 +11,7 @@ import {
   updateAcademicFileStatus,
   reviewCourseCoverageReport,
   ConsolidatedRecord,
+  syncWithCloudDatabase,
 } from '@/lib/store';
 import {
   Profile,
@@ -74,6 +75,30 @@ export default function CentralizedReportingPage() {
     setTeachers(profs);
     setCourses(getTeacherCourses());
     refreshRecords();
+
+    // Cross-device Cloud Sync
+    const syncData = async () => {
+      await syncWithCloudDatabase();
+      const latestProfs = getProfiles().filter((p) => p.role === 'teacher');
+      setTeachers(latestProfs);
+      setCourses(getTeacherCourses());
+      refreshRecords();
+    };
+
+    syncData();
+    const interval = setInterval(syncData, 15000);
+    const handleStorage = () => syncData();
+
+    window.addEventListener('storage', handleStorage);
+    window.addEventListener('ue-courses-change', handleStorage);
+    window.addEventListener('focus', handleStorage);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('storage', handleStorage);
+      window.removeEventListener('ue-courses-change', handleStorage);
+      window.removeEventListener('focus', handleStorage);
+    };
   }, []);
 
   const refreshRecords = () => {

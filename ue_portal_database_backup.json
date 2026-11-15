@@ -1,33 +1,407 @@
 {
-  "exported_at": "2026-11-14T14:56:25.775Z",
+  "exported_at": "2026-11-15T08:58:11.929Z",
   "institution": "University of Education, Lahore (Faisalabad Campus)",
   "department": "UE Business School",
   "portal_version": "1.0.0",
   "data": {
+    "profiles": [
+      {
+        "id": "user-faculty-1794662082243",
+        "full_name": "ali raza",
+        "email": "aliraza@gmail.com",
+        "password": "1234",
+        "role": "teacher",
+        "designation": "Faculty Member",
+        "department": "UE Business School",
+        "is_active": true,
+        "created_at": "2026-11-14T13:14:42.243Z"
+      },
+      {
+        "id": "user-teacher-aliraza",
+        "full_name": "Ali Raza",
+        "email": "aliraza@ue.edu.pk",
+        "password": "1234",
+        "role": "teacher",
+        "designation": "Faculty Member",
+        "department": "UE Business School",
+        "is_active": true,
+        "created_at": "2026-11-14T13:14:42.243Z"
+      },
+      {
+        "id": "user-teacher-ali",
+        "full_name": "Ali",
+        "email": "ali@gmail.com",
+        "password": "12345678",
+        "role": "teacher",
+        "designation": "Faculty Member",
+        "department": "UE Business School",
+        "is_active": true,
+        "created_at": "2026-08-01T08:35:00Z"
+      },
+      {
+        "id": "user-admin-adil",
+        "full_name": "Muhammad Adil",
+        "email": "adil@ue.edu.pk",
+        "password": "adil123",
+        "role": "admin",
+        "designation": "Campus Administrator / Full Access",
+        "department": "UE Business School",
+        "is_active": true,
+        "created_at": "2026-08-01T08:00:00Z"
+      },
+      {
+        "id": "user-admin-waqas",
+        "full_name": "waqas",
+        "email": "waqasch5387@gmail.com",
+        "password": "ueadmin2026",
+        "role": "admin",
+        "designation": "Director / Quality Head",
+        "department": "UE Business School",
+        "is_active": true,
+        "created_at": "2026-11-14T13:14:42.243Z"
+      }
+    ],
     "teacher_courses": [
       {
-        "id": "tc-aliraza-002",
+        "id": "tc-1794729417395",
         "teacher_id": "user-teacher-aliraza",
-        "subject_name": "Business Finance",
-        "subject_code": "FIN-201",
+        "subject_name": "Business Communication I",
+        "subject_code": "BUSA3114",
         "program": "BBA",
-        "class_section": "BBA 3rd Evening B",
         "semester_number": 3,
+        "class_section": "BBA 3rd Morning A",
         "academic_year": "2026",
         "term": "Fall",
-        "created_at": "2026-11-14T15:24:32.460Z"
+        "created_at": "2026-11-15T07:56:57.395Z"
+      },
+      {
+        "id": "tc-aliraza-macro",
+        "teacher_id": "user-teacher-aliraza",
+        "subject_name": "Principles of Macroeconomics",
+        "subject_code": "ECON2111",
+        "program": "BBA",
+        "semester_number": 3,
+        "class_section": "BBA 3rd Morning A",
+        "academic_year": "2026",
+        "term": "Fall",
+        "created_at": "2026-11-15T08:43:00.000Z"
       },
       {
         "id": "tc-aliraza-001",
         "teacher_id": "user-teacher-aliraza",
         "subject_name": "Financial Management",
-        "subject_code": "FIN-301",
+        "subject_code": "BUSA3116",
         "program": "BBA",
-        "class_section": "BBA 5th Morning A",
         "semester_number": 5,
+        "class_section": "BBA 5th Morning A",
         "academic_year": "2026",
         "term": "Fall",
-        "created_at": "2026-11-14T15:24:32.459Z"
+        "created_at": "2026-11-14T13:14:42.243Z"
+      },
+      {
+        "id": "tc-1794662750051",
+        "teacher_id": "user-teacher-ali",
+        "subject_name": "Marketing Research",
+        "subject_code": "BUSA4132",
+        "program": "BBA",
+        "semester_number": 7,
+        "class_section": "BBA 7th Morning A",
+        "academic_year": "2026",
+        "term": "Fall",
+        "created_at": "2026-11-14T13:20:00.000Z"
+      },
+      {
+        "id": "tc-001",
+        "teacher_id": "user-teacher-001",
+        "subject_name": "Introduction to Business",
+        "subject_code": "BBA-101",
+        "program": "BBA",
+        "semester_number": 1,
+        "class_section": "BBA 1st Morning A",
+        "academic_year": "2026",
+        "term": "Fall",
+        "created_at": "2026-11-01T08:00:00.000Z"
+      }
+    ],
+    "course_coverage_reports": [
+      {
+        "id": "ccr-1794729449799",
+        "teacher_course_id": "tc-1794729417395",
+        "teacher_id": "user-teacher-aliraza",
+        "faculty_name": "Ali Raza",
+        "faculty_signature": "Ali Raza",
+        "course_name": "Business Communication I",
+        "course_code": "BUSA3114",
+        "program": "BBA",
+        "semester": "Semester 3 (Fall)",
+        "session": "2026",
+        "credit_hours": "3",
+        "section": "BBA 3rd Morning A",
+        "status": "submitted",
+        "is_submitted": true,
+        "submitted_at": "2026-11-15T07:57:29.801Z",
+        "midterm_weightage": "20%",
+        "formative_weightage": "20%",
+        "final_weightage": "60%",
+        "total_weightage": "100%",
+        "methodology_interactive_lectures": true,
+        "methodology_classroom_discussions": true,
+        "formative_attendance": true,
+        "formative_quiz": true,
+        "formative_assignments": true,
+        "formative_presentations": true,
+        "week_wise_coverage": [
+          {
+            "week_number": 1,
+            "topics_covered": "Week 1 Course Syllabus Coverage"
+          },
+          {
+            "week_number": 2,
+            "topics_covered": "Week 2 Course Syllabus Coverage"
+          },
+          {
+            "week_number": 3,
+            "topics_covered": "Week 3 Course Syllabus Coverage"
+          },
+          {
+            "week_number": 4,
+            "topics_covered": "Week 4 Course Syllabus Coverage"
+          },
+          {
+            "week_number": 5,
+            "topics_covered": "Week 5 Course Syllabus Coverage"
+          },
+          {
+            "week_number": 6,
+            "topics_covered": "Week 6 Course Syllabus Coverage"
+          },
+          {
+            "week_number": 7,
+            "topics_covered": "Week 7 Course Syllabus Coverage"
+          },
+          {
+            "week_number": 8,
+            "topics_covered": "Week 8 Course Syllabus Coverage"
+          },
+          {
+            "week_number": 9,
+            "topics_covered": "Week 9 Course Syllabus Coverage"
+          },
+          {
+            "week_number": 10,
+            "topics_covered": "Week 10 Course Syllabus Coverage"
+          },
+          {
+            "week_number": 11,
+            "topics_covered": "Week 11 Course Syllabus Coverage"
+          },
+          {
+            "week_number": 12,
+            "topics_covered": "Week 12 Course Syllabus Coverage"
+          },
+          {
+            "week_number": 13,
+            "topics_covered": "Week 13 Course Syllabus Coverage"
+          },
+          {
+            "week_number": 14,
+            "topics_covered": "Week 14 Course Syllabus Coverage"
+          },
+          {
+            "week_number": 15,
+            "topics_covered": "Week 15 Course Syllabus Coverage"
+          },
+          {
+            "week_number": 16,
+            "topics_covered": "Week 16 Course Syllabus Coverage"
+          }
+        ]
+      },
+      {
+        "id": "ccr-1794732216750",
+        "teacher_course_id": "tc-aliraza-macro",
+        "teacher_id": "user-teacher-aliraza",
+        "faculty_name": "Ali Raza",
+        "faculty_signature": "Ali Raza",
+        "course_name": "Principles of Macroeconomics",
+        "course_code": "ECON2111",
+        "program": "BBA",
+        "semester": "Semester 3 (Fall)",
+        "session": "2026",
+        "credit_hours": "3",
+        "section": "BBA 3rd Morning A",
+        "status": "submitted",
+        "is_submitted": true,
+        "submitted_at": "2026-11-15T08:43:36.750Z",
+        "midterm_weightage": "20%",
+        "formative_weightage": "20%",
+        "final_weightage": "60%",
+        "total_weightage": "100%",
+        "methodology_interactive_lectures": true,
+        "methodology_classroom_discussions": true,
+        "formative_attendance": true,
+        "formative_quiz": true,
+        "formative_assignments": true,
+        "formative_presentations": true,
+        "week_wise_coverage": [
+          {
+            "week_number": 1,
+            "topics_covered": "Week 1 Macroeconomics Principles"
+          },
+          {
+            "week_number": 2,
+            "topics_covered": "Week 2 Macroeconomics Principles"
+          },
+          {
+            "week_number": 3,
+            "topics_covered": "Week 3 Macroeconomics Principles"
+          },
+          {
+            "week_number": 4,
+            "topics_covered": "Week 4 Macroeconomics Principles"
+          },
+          {
+            "week_number": 5,
+            "topics_covered": "Week 5 Macroeconomics Principles"
+          },
+          {
+            "week_number": 6,
+            "topics_covered": "Week 6 Macroeconomics Principles"
+          },
+          {
+            "week_number": 7,
+            "topics_covered": "Week 7 Macroeconomics Principles"
+          },
+          {
+            "week_number": 8,
+            "topics_covered": "Week 8 Macroeconomics Principles"
+          },
+          {
+            "week_number": 9,
+            "topics_covered": "Week 9 Macroeconomics Principles"
+          },
+          {
+            "week_number": 10,
+            "topics_covered": "Week 10 Macroeconomics Principles"
+          },
+          {
+            "week_number": 11,
+            "topics_covered": "Week 11 Macroeconomics Principles"
+          },
+          {
+            "week_number": 12,
+            "topics_covered": "Week 12 Macroeconomics Principles"
+          },
+          {
+            "week_number": 13,
+            "topics_covered": "Week 13 Macroeconomics Principles"
+          },
+          {
+            "week_number": 14,
+            "topics_covered": "Week 14 Macroeconomics Principles"
+          },
+          {
+            "week_number": 15,
+            "topics_covered": "Week 15 Macroeconomics Principles"
+          },
+          {
+            "week_number": 16,
+            "topics_covered": "Week 16 Macroeconomics Principles"
+          }
+        ]
+      },
+      {
+        "id": "ccr-1794662786602",
+        "teacher_course_id": "tc-1794662750051",
+        "teacher_id": "user-teacher-ali",
+        "faculty_name": "Ali",
+        "faculty_signature": "Ali",
+        "course_name": "Marketing Research",
+        "course_code": "BUSA4132",
+        "program": "BBA",
+        "semester": "Semester 7 (Fall)",
+        "session": "2026",
+        "credit_hours": "3",
+        "section": "BBA 7th Morning A",
+        "status": "submitted",
+        "is_submitted": true,
+        "submitted_at": "2026-11-14T14:23:12.329Z",
+        "midterm_weightage": "20%",
+        "formative_weightage": "20%",
+        "final_weightage": "60%",
+        "total_weightage": "100%",
+        "methodology_interactive_lectures": true,
+        "methodology_classroom_discussions": true,
+        "formative_attendance": true,
+        "formative_quiz": true,
+        "formative_assignments": true,
+        "formative_presentations": true,
+        "week_wise_coverage": [
+          {
+            "week_number": 1,
+            "topics_covered": "Week 1 Marketing Research Methodology"
+          },
+          {
+            "week_number": 2,
+            "topics_covered": "Week 2 Marketing Research Methodology"
+          },
+          {
+            "week_number": 3,
+            "topics_covered": "Week 3 Marketing Research Methodology"
+          },
+          {
+            "week_number": 4,
+            "topics_covered": "Week 4 Marketing Research Methodology"
+          },
+          {
+            "week_number": 5,
+            "topics_covered": "Week 5 Marketing Research Methodology"
+          },
+          {
+            "week_number": 6,
+            "topics_covered": "Week 6 Marketing Research Methodology"
+          },
+          {
+            "week_number": 7,
+            "topics_covered": "Week 7 Marketing Research Methodology"
+          },
+          {
+            "week_number": 8,
+            "topics_covered": "Week 8 Marketing Research Methodology"
+          },
+          {
+            "week_number": 9,
+            "topics_covered": "Week 9 Marketing Research Methodology"
+          },
+          {
+            "week_number": 10,
+            "topics_covered": "Week 10 Marketing Research Methodology"
+          },
+          {
+            "week_number": 11,
+            "topics_covered": "Week 11 Marketing Research Methodology"
+          },
+          {
+            "week_number": 12,
+            "topics_covered": "Week 12 Marketing Research Methodology"
+          },
+          {
+            "week_number": 13,
+            "topics_covered": "Week 13 Marketing Research Methodology"
+          },
+          {
+            "week_number": 14,
+            "topics_covered": "Week 14 Marketing Research Methodology"
+          },
+          {
+            "week_number": 15,
+            "topics_covered": "Week 15 Marketing Research Methodology"
+          },
+          {
+            "week_number": 16,
+            "topics_covered": "Week 16 Marketing Research Methodology"
+          }
+        ]
       }
     ]
   }

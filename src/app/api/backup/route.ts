@@ -58,9 +58,63 @@ async function saveToVercelKV(data: any): Promise<boolean> {
 
 export async function GET() {
   try {
+    // Disk baseline file
+    let targetFile = BACKUP_FILE;
+    if (!fs.existsSync(targetFile)) {
+      const localFile = path.join(process.cwd(), 'ue_portal_database_backup.json');
+      if (fs.existsSync(localFile)) {
+        targetFile = localFile;
+      }
+    }
+    let baselineData: any = null;
+    if (fs.existsSync(targetFile)) {
+      try {
+        baselineData = JSON.parse(fs.readFileSync(targetFile, 'utf-8'));
+      } catch {}
+    }
+
     // 1. Try Vercel KV first (real-time cross-device cloud sync)
     const kvData = await getFromVercelKV();
     if (kvData) {
+      // Self-heal: If KV data is missing course_coverage_reports or teacher_courses but baseline has them, merge!
+      if (baselineData) {
+        const kvExt = extractStoreData(kvData);
+        const baseExt = extractStoreData(baselineData);
+        let healed = false;
+
+        const CHECK_KEYS = ['course_coverage_reports', 'teacher_courses', 'profiles'] as const;
+        for (const k of CHECK_KEYS) {
+          const kvArr = Array.isArray(kvExt[k]) ? kvExt[k] : [];
+          const baseArr = Array.isArray(baseExt[k]) ? baseExt[k] : [];
+          if (baseArr.length > 0) {
+            const map = new Map<string, any>();
+            kvArr.forEach((item: any) => { if (item?.id) map.set(item.id, item); });
+            baseArr.forEach((item: any) => {
+              if (item?.id && !map.has(item.id)) {
+                map.set(item.id, item);
+                healed = true;
+              }
+            });
+            kvExt[k] = Array.from(map.values());
+          }
+        }
+
+        if (healed) {
+          const healedPayload = {
+            ...kvData,
+            data: kvExt,
+          };
+          globalThis.__PORTAL_SHARED_DB = healedPayload;
+          saveToVercelKV(healedPayload).catch(() => {});
+          return NextResponse.json({
+            success: true,
+            source: 'vercel_kv',
+            exists: true,
+            data: healedPayload,
+          });
+        }
+      }
+
       globalThis.__PORTAL_SHARED_DB = kvData;
       return NextResponse.json({
         success: true,
@@ -81,25 +135,16 @@ export async function GET() {
     }
 
     // 3. Fallback to disk file
-    let targetFile = BACKUP_FILE;
-    if (!fs.existsSync(targetFile)) {
-      const localFile = path.join(process.cwd(), 'ue_portal_database_backup.json');
-      if (fs.existsSync(localFile)) {
-        targetFile = localFile;
-      } else {
-        return NextResponse.json({ success: true, exists: false, message: 'No backup file found on disk yet.' });
-      }
+    if (!baselineData) {
+      return NextResponse.json({ success: true, exists: false, message: 'No backup file found on disk yet.' });
     }
 
-    const content = fs.readFileSync(targetFile, 'utf-8');
-    const parsed = JSON.parse(content);
-    globalThis.__PORTAL_SHARED_DB = parsed;
-
+    globalThis.__PORTAL_SHARED_DB = baselineData;
     return NextResponse.json({
       success: true,
       source: 'disk_backup',
       exists: true,
-      data: parsed,
+      data: baselineData,
     });
   } catch (error: any) {
     return NextResponse.json(
@@ -109,21 +154,96 @@ export async function GET() {
   }
 }
 
+function extractStoreData(obj: any): any {
+  if (!obj || typeof obj !== 'object') return {};
+  if (obj.data && typeof obj.data === 'object' && !Array.isArray(obj.data)) {
+    return extractStoreData(obj.data);
+  }
+  return obj;
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const dataToSave = body.data || body;
-    globalThis.__PORTAL_SHARED_DB = dataToSave;
+    const incomingPayload = body.data || body;
+    const incoming = extractStoreData(incomingPayload);
 
-    // 1. Persist to Vercel KV if connected (syncs across all phones and laptops!)
-    await saveToVercelKV(dataToSave);
+    // Fetch existing database from Upstash KV or memory
+    const existingCloud = (await getFromVercelKV()) || globalThis.__PORTAL_SHARED_DB || {};
+    const existing = extractStoreData(existingCloud);
+
+    const MERGE_COLLECTIONS = [
+      'teacher_courses',
+      'course_coverage_reports',
+      'academic_files',
+      'teaching_activities',
+      'additional_activities',
+      'submissions',
+      'assignment_teachers',
+      'profiles',
+      'audit_logs',
+      'academic_categories',
+      'assignments',
+      'programs',
+      'semesters',
+    ] as const;
+
+    const mergedData: Record<string, any> = { ...existing };
+
+    for (const key of MERGE_COLLECTIONS) {
+      const existingList = Array.isArray(existing[key])
+        ? existing[key]
+        : Array.isArray(existing[`ue_portal_data_${key}`])
+        ? existing[`ue_portal_data_${key}`]
+        : [];
+
+      const incomingList = Array.isArray(incoming[key])
+        ? incoming[key]
+        : Array.isArray(incoming[`ue_portal_data_${key}`])
+        ? incoming[`ue_portal_data_${key}`]
+        : [];
+
+      const map = new Map<string, any>();
+
+      // 1. Preserve ALL existing items so another user's empty upload never wipes data!
+      existingList.forEach((item: any) => {
+        if (item?.id) map.set(item.id, item);
+      });
+
+      // 2. Add or update incoming items
+      incomingList.forEach((item: any) => {
+        if (!item?.id) return;
+        const oldItem = map.get(item.id);
+        if (!oldItem) {
+          map.set(item.id, item);
+        } else {
+          // If incoming item has newer submission or updated fields, merge them
+          map.set(item.id, { ...oldItem, ...item });
+        }
+      });
+
+      mergedData[key] = Array.from(map.values());
+    }
+
+    const finalDatabase = {
+      exported_at: new Date().toISOString(),
+      institution: 'University of Education, Lahore (Faisalabad Campus)',
+      department: 'UE Business School',
+      portal_version: '1.0.0',
+      data: mergedData,
+    };
+
+    globalThis.__PORTAL_SHARED_DB = finalDatabase;
+
+    // 1. Persist merged data to Vercel KV
+    await saveToVercelKV(finalDatabase);
 
     // 2. Persist to disk if supported
     try {
       if (!fs.existsSync(BACKUPS_DIR)) {
         fs.mkdirSync(BACKUPS_DIR, { recursive: true });
       }
-      const jsonString = JSON.stringify(dataToSave, null, 2);
+      const jsonString = JSON.stringify(finalDatabase, null, 2);
       fs.writeFileSync(BACKUP_FILE, jsonString, 'utf-8');
     } catch {
       // In restricted serverless env, proceed gracefully
@@ -131,8 +251,8 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: 'Database backup synchronized successfully across cloud',
-      savedAt: new Date().toISOString(),
+      message: 'Database backup synchronized and merged successfully across cloud',
+      savedAt: finalDatabase.exported_at,
     });
   } catch (error: any) {
     return NextResponse.json(

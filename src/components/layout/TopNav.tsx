@@ -8,6 +8,7 @@ import {
   setCurrentUser,
   switchRole,
   syncDatabaseToDisk,
+  syncWithCloudDatabase,
   downloadBackupJSON,
 } from '@/lib/store';
 import { Profile } from '@/lib/types';
@@ -40,7 +41,21 @@ export const TopNav: React.FC<TopNavProps> = ({ onToggleMobileSidebar }) => {
     const handler = () => setUser(getCurrentUser());
     window.addEventListener('ue-auth-change', handler);
 
-    return () => window.removeEventListener('ue-auth-change', handler);
+    // Global cross-device background sync
+    syncWithCloudDatabase();
+    const interval = setInterval(() => {
+      syncWithCloudDatabase();
+    }, 20000);
+    const focusHandler = () => {
+      syncWithCloudDatabase();
+    };
+    window.addEventListener('focus', focusHandler);
+
+    return () => {
+      window.removeEventListener('ue-auth-change', handler);
+      window.removeEventListener('focus', focusHandler);
+      clearInterval(interval);
+    };
   }, []);
 
   const handleManualBackup = async () => {

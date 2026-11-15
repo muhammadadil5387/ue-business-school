@@ -106,9 +106,12 @@ export function getCurrentUser(): Profile | null {
 }
 
 export function setCurrentUser(user: Profile | null): void {
-  setStored('current_user', user);
-  if (typeof window !== 'undefined') {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(STORAGE_KEY_PREFIX + 'current_user', JSON.stringify(user));
     window.dispatchEvent(new Event('ue-auth-change'));
+  } catch (err) {
+    console.error('Failed to save current user:', err);
   }
 }
 
