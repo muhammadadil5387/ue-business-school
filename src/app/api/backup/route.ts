@@ -79,38 +79,17 @@ export async function GET() {
       const kvExt = extractStoreData(kvData);
       let dataChanged = false;
 
-      // Performance Optimization: Strip excessive base64 strings so responses are instantaneous (< 50KB instead of 4MB!)
-      if (Array.isArray(kvExt.academic_files)) {
-        kvExt.academic_files = kvExt.academic_files.map((f: any) => {
-          if (f?.file_data && typeof f.file_data === 'string' && f.file_data.length > 50000) {
-            dataChanged = true;
-            return {
-              ...f,
-              file_data: f.file_data.substring(0, 10000),
-            };
-          }
-          return f;
-        });
-      }
-
-      // Self-heal: If KV data is missing course_coverage_reports or teacher_courses but baseline has them, merge!
-      if (baselineData) {
-        const baseExt = extractStoreData(baselineData);
-
-        const CHECK_KEYS = ['course_coverage_reports', 'teacher_courses', 'profiles'] as const;
-        for (const k of CHECK_KEYS) {
-          const kvArr = Array.isArray(kvExt[k]) ? kvExt[k] : [];
-          const baseArr = Array.isArray(baseExt[k]) ? baseExt[k] : [];
-          if (baseArr.length > 0) {
-            const map = new Map<string, any>();
-            kvArr.forEach((item: any) => { if (item?.id) map.set(item.id, item); });
-            baseArr.forEach((item: any) => {
-              if (item?.id && !map.has(item.id)) {
-                map.set(item.id, item);
-                dataChanged = true;
-              }
-            });
-            kvExt[k] = Array.from(map.values());
+      // Strip any permanently deleted IDs so deleted users and courses never resurrect!
+      const existingDeleted = new Set<string>(
+        (Array.isArray(kvExt.deleted_ids) ? kvExt.deleted_ids : []).map((x: any) => String(x).toLowerCase().trim())
+      );
+      if (existingDeleted.size > 0) {
+        const ALL_KEYS = ['profiles', 'teacher_courses', 'course_coverage_reports', 'academic_files', 'academic_categories'] as const;
+        for (const k of ALL_KEYS) {
+          if (Array.isArray(kvExt[k])) {
+            const beforeCount = kvExt[k].length;
+            kvExt[k] = kvExt[k].filter((item: any) => !existingDeleted.has(String(item?.id || '').toLowerCase().trim()) && !existingDeleted.has(String(item?.email || '').toLowerCase().trim()));
+            if (kvExt[k].length < beforeCount) dataChanged = true;
           }
         }
       }
@@ -191,10 +170,13 @@ export async function POST(req: NextRequest) {
     const incomingDeleted: string[] = [
       ...(Array.isArray(body.deleted_ids) ? body.deleted_ids : []),
       ...(body.deleted_id ? [body.deleted_id] : []),
+      ...(body.deleted_email ? [body.deleted_email] : []),
       ...(Array.isArray(incoming.deleted_ids) ? incoming.deleted_ids : []),
-    ];
+    ].map((x: any) => String(x).toLowerCase().trim()).filter(Boolean);
 
-    const existingDeleted: string[] = Array.isArray(existing.deleted_ids) ? existing.deleted_ids : [];
+    const existingDeleted: string[] = (Array.isArray(existing.deleted_ids) ? existing.deleted_ids : [])
+      .map((x: any) => String(x).toLowerCase().trim())
+      .filter(Boolean);
     const allDeletedSet = new Set<string>([...existingDeleted, ...incomingDeleted]);
 
     const MERGE_COLLECTIONS = [
@@ -233,14 +215,18 @@ export async function POST(req: NextRequest) {
 
       // 1. Preserve existing items, EXCEPT permanently deleted IDs!
       existingList.forEach((item: any) => {
-        if (item?.id && !allDeletedSet.has(item.id)) {
+        const itemId = String(item?.id || '').toLowerCase().trim();
+        const itemEmail = String(item?.email || '').toLowerCase().trim();
+        if (itemId && !allDeletedSet.has(itemId) && (!itemEmail || !allDeletedSet.has(itemEmail))) {
           map.set(item.id, item);
         }
       });
 
       // 2. Add or update incoming items, EXCEPT permanently deleted IDs!
       incomingList.forEach((item: any) => {
-        if (!item?.id || allDeletedSet.has(item.id)) return;
+        const itemId = String(item?.id || '').toLowerCase().trim();
+        const itemEmail = String(item?.email || '').toLowerCase().trim();
+        if (!itemId || allDeletedSet.has(itemId) || (itemEmail && allDeletedSet.has(itemEmail))) return;
         const oldItem = map.get(item.id);
         if (!oldItem) {
           map.set(item.id, item);
@@ -251,19 +237,6 @@ export async function POST(req: NextRequest) {
       });
 
       mergedData[key] = Array.from(map.values());
-    }
-
-    // Performance Optimization: Keep academic_files lightweight to ensure lightning fast responses (< 50KB)
-    if (Array.isArray(mergedData.academic_files)) {
-      mergedData.academic_files = mergedData.academic_files.map((f: any) => {
-        if (f?.file_data && typeof f.file_data === 'string' && f.file_data.length > 50000) {
-          return {
-            ...f,
-            file_data: f.file_data.substring(0, 10000),
-          };
-        }
-        return f;
-      });
     }
 
     const finalDatabase = {

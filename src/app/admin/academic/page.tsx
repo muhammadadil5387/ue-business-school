@@ -46,7 +46,7 @@ export default function AdminAcademicPage() {
   });
 
   const refresh = () => {
-    const profiles = getProfiles().filter((p) => p.role === 'teacher');
+    const profiles = getProfiles().filter((p) => p.role === 'teacher' && p.is_active !== false);
     setTeachers(profiles);
     setStats(getAcademicStats());
     const sess = getSessions();
@@ -67,11 +67,13 @@ export default function AdminAcademicPage() {
     refresh();
 
     const syncHandler = () => refresh();
+    window.addEventListener('ue-auth-change', syncHandler);
     window.addEventListener('ue-sessions-change', syncHandler);
     window.addEventListener('ue-courses-change', syncHandler);
     window.addEventListener('storage', syncHandler);
 
     return () => {
+      window.removeEventListener('ue-auth-change', syncHandler);
       window.removeEventListener('ue-sessions-change', syncHandler);
       window.removeEventListener('ue-courses-change', syncHandler);
       window.removeEventListener('storage', syncHandler);

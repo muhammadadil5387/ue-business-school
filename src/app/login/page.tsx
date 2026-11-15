@@ -39,6 +39,16 @@ export default function LoginPage() {
       const inputLower = cleanInput.toLowerCase();
       const cleanPassword = (password || '').trim();
 
+      const deletedIds = new Set(
+        (getStored<string[]>('deleted_ids', []) || []).map((x) => String(x).toLowerCase().trim())
+      );
+
+      if (deletedIds.has(inputLower)) {
+        setError(`⛔ Ye account Admin ne permanently delete kar diya hai aur system se remove ho chuka hai.`);
+        setIsLoading(false);
+        return;
+      }
+
       let profiles = getProfiles();
 
       const findMatch = (list: any[]) => {
@@ -66,9 +76,20 @@ export default function LoginPage() {
           if (res.ok) {
             const json = await res.json();
             const remoteData = json.data?.data || json.data;
+            if (Array.isArray(remoteData?.deleted_ids)) {
+              remoteData.deleted_ids.forEach((id: string) => deletedIds.add(String(id).toLowerCase().trim()));
+            }
+            if (deletedIds.has(inputLower)) {
+              setError(`⛔ Ye account Admin ne permanently delete kar diya hai!`);
+              setIsLoading(false);
+              return;
+            }
             const cloudProfiles = remoteData?.profiles;
             if (Array.isArray(cloudProfiles) && cloudProfiles.length > 0) {
-              matched = findMatch(cloudProfiles);
+              const activeCloudProfiles = cloudProfiles.filter(
+                (p: any) => !deletedIds.has(p.id?.toLowerCase().trim()) && !deletedIds.has((p.email || '').toLowerCase().trim())
+              );
+              matched = findMatch(activeCloudProfiles);
               if (matched) {
                 // Save to local state so next login is instant
                 const combined = [matched, ...profiles.filter((p) => p.id !== matched.id)];
@@ -97,6 +118,15 @@ export default function LoginPage() {
 
       if (!matched) {
         setError(`Account '${cleanInput}' register nahi mila. Baraye mehrbani sahi email ya username enter karein.`);
+        setIsLoading(false);
+        return;
+      }
+
+      if (
+        deletedIds.has((matched.id || '').toLowerCase().trim()) ||
+        deletedIds.has((matched.email || '').toLowerCase().trim())
+      ) {
+        setError(`⛔ Ye account '${matched.full_name}' Admin ne permanently delete kar diya hai!`);
         setIsLoading(false);
         return;
       }

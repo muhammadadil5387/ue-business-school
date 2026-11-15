@@ -128,6 +128,14 @@ export function switchRole(role: 'admin' | 'teacher'): Profile {
 export function getProfiles(): Profile[] {
   let stored = getStored<Profile[]>('profiles', INITIAL_PROFILES);
 
+  // Filter out any profile that was deleted permanently
+  const deletedIds = new Set(
+    (getStored<string[]>('deleted_ids', []) || []).map((x) => String(x).toLowerCase().trim())
+  );
+  stored = stored.filter(
+    (p) => !deletedIds.has((p.id || '').toLowerCase().trim()) && !deletedIds.has((p.email || '').toLowerCase().trim())
+  );
+
   // 1. Upgrade any old Adil admin account to Dr. Kashif as requested
   let profileChanged = false;
   stored = stored.map((p) => {
@@ -180,101 +188,6 @@ export function getProfiles(): Profile[] {
       localStorage.setItem(STORAGE_KEY_PREFIX + 'current_user', JSON.stringify(kashifProfile));
       window.dispatchEvent(new Event('ue-auth-change'));
     }
-  }
-
-  // Ensure adil@gmail.com teacher account exists
-  const teacherAdil = stored.find((p) => p.email?.toLowerCase() === 'adil@gmail.com');
-  if (!teacherAdil) {
-    const newTeacher: Profile = {
-      id: 'user-teacher-adil',
-      email: 'adil@gmail.com',
-      full_name: 'Muhammad Adil',
-      role: 'teacher',
-      password: '12345678',
-      designation: 'Faculty Member',
-      department: 'UE Business School',
-      phone: '+92 300 1234567',
-      is_active: true,
-      created_at: new Date().toISOString(),
-    };
-    stored = [...stored, newTeacher];
-    setStored('profiles', stored);
-  }
-
-  // Ensure ali@gmail.com teacher account exists
-  const teacherAli = stored.find((p) => p.email?.toLowerCase() === 'ali@gmail.com');
-  if (!teacherAli) {
-    const newAli: Profile = {
-      id: 'user-teacher-ali',
-      email: 'ali@gmail.com',
-      full_name: 'Ali',
-      role: 'teacher',
-      password: '12345678',
-      designation: 'Faculty Member',
-      department: 'UE Business School',
-      phone: '+92 300 1234567',
-      is_active: true,
-      created_at: new Date().toISOString(),
-    };
-    stored = [...stored, newAli];
-    setStored('profiles', stored);
-  }
-
-  // Ensure jawad123@gmail.com teacher account exists
-  const teacherJawad = stored.find((p) => p.email?.toLowerCase() === 'jawad123@gmail.com');
-  if (!teacherJawad) {
-    const newJawad: Profile = {
-      id: 'user-teacher-jawad',
-      email: 'jawad123@gmail.com',
-      full_name: 'Jawad',
-      role: 'teacher',
-      password: '12345678',
-      designation: 'Faculty Member',
-      department: 'UE Business School',
-      phone: '+92 300 1234567',
-      is_active: true,
-      created_at: new Date().toISOString(),
-    };
-    stored = [...stored, newJawad];
-    setStored('profiles', stored);
-  }
-
-  // Ensure umar@gmail.com teacher account exists
-  const teacherUmar = stored.find((p) => p.email?.toLowerCase() === 'umar@gmail.com');
-  if (!teacherUmar) {
-    const newUmar: Profile = {
-      id: 'user-teacher-umar',
-      email: 'umar@gmail.com',
-      full_name: 'Umar',
-      role: 'teacher',
-      password: '12345678',
-      designation: 'Faculty Member',
-      department: 'UE Business School',
-      phone: '+92 300 1234567',
-      is_active: true,
-      created_at: new Date().toISOString(),
-    };
-    stored = [...stored, newUmar];
-    setStored('profiles', stored);
-  }
-
-  // Ensure aliraza@gmail.com teacher account exists
-  const teacherAliRaza = stored.find((p) => p.email?.toLowerCase() === 'aliraza@gmail.com');
-  if (!teacherAliRaza) {
-    const newAliRaza: Profile = {
-      id: 'user-teacher-aliraza',
-      email: 'aliraza@gmail.com',
-      full_name: 'Ali Raza',
-      role: 'teacher',
-      password: '1234',
-      designation: 'Faculty Member',
-      department: 'UE Business School',
-      phone: '+92 300 1234567',
-      is_active: true,
-      created_at: new Date().toISOString(),
-    };
-    stored = [...stored, newAliRaza];
-    setStored('profiles', stored);
   }
 
   return stored;
@@ -387,11 +300,19 @@ export function deleteFaculty(id: string): void {
   const updated = profiles.filter((p) => p.id !== id);
   setStored('profiles', updated);
 
-  // Track in deleted_ids so cloud database never resurrects it!
+  // Track both id and email in deleted_ids so cloud database & local store never resurrect it!
   const deletedIds = getStored<string[]>('deleted_ids', []);
-  if (!deletedIds.includes(id)) {
-    setStored('deleted_ids', [...deletedIds, id]);
+  const newDeleted = [...deletedIds];
+  if (!newDeleted.includes(id)) newDeleted.push(id);
+  if (target?.email && !newDeleted.includes(target.email.toLowerCase())) {
+    newDeleted.push(target.email.toLowerCase());
   }
+  setStored('deleted_ids', newDeleted);
+
+  // Also remove their assigned courses!
+  const courses = getStored<TeacherCourse[]>('teacher_courses', INITIAL_TEACHER_COURSES);
+  const remainingCourses = courses.filter((c) => c.teacher_id !== id && (target?.email ? c.teacher_id !== target.email : true));
+  setStored('teacher_courses', remainingCourses);
 
   // If deleted user was active in session, kick them out immediately!
   const current = getCurrentUser();
@@ -405,14 +326,20 @@ export function deleteFaculty(id: string): void {
 
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new Event('ue-auth-change'));
+    window.dispatchEvent(new Event('ue-courses-change'));
+    window.dispatchEvent(new Event('storage'));
     // Permanent deletion from cloud database
     fetch('/api/backup', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        deleted_id: id,
+        deleted_ids: [id, target?.email?.toLowerCase()].filter(Boolean),
         deleted_type: 'profiles',
-        data: { profiles: updated },
+        data: {
+          profiles: updated,
+          teacher_courses: remainingCourses,
+          deleted_ids: newDeleted,
+        },
       }),
     }).catch(() => {});
   }
@@ -1049,7 +976,11 @@ function buildDefaultCategories(teacherCourseId: string, section: 'midterm' | 'f
 
 // Teacher Courses
 export function getTeacherCourses(teacherId?: string): TeacherCourse[] {
-  const courses = getStored<TeacherCourse[]>('teacher_courses', INITIAL_TEACHER_COURSES);
+  let courses = getStored<TeacherCourse[]>('teacher_courses', INITIAL_TEACHER_COURSES);
+  const deletedIds = new Set(
+    (getStored<string[]>('deleted_ids', []) || []).map((x) => String(x).toLowerCase().trim())
+  );
+  courses = courses.filter((c) => !deletedIds.has(c.id.toLowerCase().trim()));
   if (!teacherId) return courses;
 
   // Resolve all alias IDs for this teacher (match by id, email, or exact full_name)
