@@ -187,6 +187,16 @@ export async function POST(req: NextRequest) {
     const existingCloud = (await getFromVercelKV()) || globalThis.__PORTAL_SHARED_DB || {};
     const existing = extractStoreData(existingCloud);
 
+    // Collect all deleted IDs so deletions are permanent across all devices!
+    const incomingDeleted: string[] = [
+      ...(Array.isArray(body.deleted_ids) ? body.deleted_ids : []),
+      ...(body.deleted_id ? [body.deleted_id] : []),
+      ...(Array.isArray(incoming.deleted_ids) ? incoming.deleted_ids : []),
+    ];
+
+    const existingDeleted: string[] = Array.isArray(existing.deleted_ids) ? existing.deleted_ids : [];
+    const allDeletedSet = new Set<string>([...existingDeleted, ...incomingDeleted]);
+
     const MERGE_COLLECTIONS = [
       'teacher_courses',
       'course_coverage_reports',
@@ -204,6 +214,7 @@ export async function POST(req: NextRequest) {
     ] as const;
 
     const mergedData: Record<string, any> = { ...existing };
+    mergedData.deleted_ids = Array.from(allDeletedSet);
 
     for (const key of MERGE_COLLECTIONS) {
       const existingList = Array.isArray(existing[key])
@@ -220,14 +231,16 @@ export async function POST(req: NextRequest) {
 
       const map = new Map<string, any>();
 
-      // 1. Preserve ALL existing items so another user's empty upload never wipes data!
+      // 1. Preserve existing items, EXCEPT permanently deleted IDs!
       existingList.forEach((item: any) => {
-        if (item?.id) map.set(item.id, item);
+        if (item?.id && !allDeletedSet.has(item.id)) {
+          map.set(item.id, item);
+        }
       });
 
-      // 2. Add or update incoming items
+      // 2. Add or update incoming items, EXCEPT permanently deleted IDs!
       incomingList.forEach((item: any) => {
-        if (!item?.id) return;
+        if (!item?.id || allDeletedSet.has(item.id)) return;
         const oldItem = map.get(item.id);
         if (!oldItem) {
           map.set(item.id, item);

@@ -326,6 +326,27 @@ export function toggleFacultyStatus(id: string): void {
   );
   setStored('profiles', updated);
   logAudit('TOGGLE_FACULTY_STATUS', 'profile', id, {});
+
+  // If currently active user was just stopped/deactivated, kick them out immediately!
+  const target = updated.find((p) => p.id === id);
+  const current = getCurrentUser();
+  if (current && target && !target.is_active && (current.id === id || current.email?.toLowerCase() === target.email?.toLowerCase())) {
+    localStorage.removeItem(STORAGE_KEY_PREFIX + 'current_user');
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('ue-auth-change'));
+      window.location.href = '/login?deactivated=1';
+    }
+  }
+
+  // Push status immediately to cloud so other devices block this user right away!
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('ue-auth-change'));
+    fetch('/api/backup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data: { profiles: updated } }),
+    }).catch(() => {});
+  }
 }
 
 export function updateFacultyPassword(id: string, newPassword: string): void {
@@ -350,6 +371,11 @@ export function updateFaculty(id: string, updates: Partial<Profile>): Profile | 
   setStored('profiles', updated);
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new Event('ue-auth-change'));
+    fetch('/api/backup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data: { profiles: updated } }),
+    }).catch(() => {});
   }
   logAudit('UPDATE_FACULTY', 'profile', id, updates);
   return updatedItem;
@@ -361,14 +387,34 @@ export function deleteFaculty(id: string): void {
   const updated = profiles.filter((p) => p.id !== id);
   setStored('profiles', updated);
 
-  // If deleted user was active in current_user session, clear or revert to default admin
+  // Track in deleted_ids so cloud database never resurrects it!
+  const deletedIds = getStored<string[]>('deleted_ids', []);
+  if (!deletedIds.includes(id)) {
+    setStored('deleted_ids', [...deletedIds, id]);
+  }
+
+  // If deleted user was active in session, kick them out immediately!
   const current = getCurrentUser();
-  if (current && current.id === id) {
-    setCurrentUser(updated[0] || null);
+  if (current && (current.id === id || (target && current.email?.toLowerCase() === target.email?.toLowerCase()))) {
+    localStorage.removeItem(STORAGE_KEY_PREFIX + 'current_user');
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('ue-auth-change'));
+      window.location.href = '/login?deactivated=1';
+    }
   }
 
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new Event('ue-auth-change'));
+    // Permanent deletion from cloud database
+    fetch('/api/backup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        deleted_id: id,
+        deleted_type: 'profiles',
+        data: { profiles: updated },
+      }),
+    }).catch(() => {});
   }
   logAudit('DELETE_FACULTY', 'profile', id, { name: target?.full_name, email: target?.email });
 }
@@ -1063,15 +1109,40 @@ export function updateTeacherCourse(id: string, data: Partial<TeacherCourse>): v
 
 export function deleteTeacherCourse(id: string): void {
   const courses = getStored<TeacherCourse[]>('teacher_courses', INITIAL_TEACHER_COURSES);
-  setStored('teacher_courses', courses.filter((c) => c.id !== id));
-  // Also remove related categories and files
+  const updatedCourses = courses.filter((c) => c.id !== id);
+  setStored('teacher_courses', updatedCourses);
+
+  // Also remove related categories, files and coverage reports
   const cats = getStored<AcademicCategory[]>('academic_categories', []);
   const catIds = cats.filter((c) => c.teacher_course_id === id).map((c) => c.id);
   setStored('academic_categories', cats.filter((c) => c.teacher_course_id !== id));
+
   const files = getStored<AcademicFile[]>('academic_files', []);
-  setStored('academic_files', files.filter((f) => !catIds.includes(f.category_id)));
+  setStored('academic_files', files.filter((f) => !catIds.includes(f.category_id) && f.teacher_course_id !== id));
+
+  const ccrs = getStored<CourseCoverageReport[]>('course_coverage_reports', []);
+  const ccrIds = ccrs.filter((r) => r.teacher_course_id === id).map((r) => r.id);
+  setStored('course_coverage_reports', ccrs.filter((r) => r.teacher_course_id !== id));
+
+  // Track deleted IDs in local deleted_ids so cloud never resurrects it!
+  const deletedIds = getStored<string[]>('deleted_ids', []);
+  const allDeletedForThisCourse = [id, ...catIds, ...ccrIds];
+  setStored('deleted_ids', Array.from(new Set([...deletedIds, ...allDeletedForThisCourse])));
+
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new Event('ue-courses-change'));
+    window.dispatchEvent(new Event('storage'));
+
+    // Permanent deletion from cloud database
+    fetch('/api/backup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        deleted_ids: allDeletedForThisCourse,
+        deleted_type: 'teacher_courses',
+        data: getAllStorageData(),
+      }),
+    }).catch(() => {});
   }
   logAudit('DELETE_TEACHER_COURSE', 'teacher_course', id, {});
 }
@@ -1893,6 +1964,39 @@ export async function autoRestoreFromDiskIfEmpty(): Promise<boolean> {
   }
 }
 
+export function validateCurrentSession(): boolean {
+  if (typeof window === 'undefined') return true;
+  const curr = getCurrentUser();
+  if (!curr) return true;
+
+  const profiles = getProfiles();
+  const deletedIds = new Set(getStored<string[]>('deleted_ids', []));
+
+  // If user was deleted or their id is in deleted_ids
+  if (deletedIds.has(curr.id)) {
+    localStorage.removeItem(STORAGE_KEY_PREFIX + 'current_user');
+    window.dispatchEvent(new Event('ue-auth-change'));
+    if (!window.location.pathname.includes('/login')) {
+      window.location.href = '/login?deactivated=1';
+    }
+    return false;
+  }
+
+  const matched = profiles.find((p) => p.id === curr.id || (p.email && curr.email && p.email.toLowerCase() === curr.email.toLowerCase()));
+
+  // If user not found in active profiles or is deactivated (is_active === false)
+  if (!matched || matched.is_active === false) {
+    localStorage.removeItem(STORAGE_KEY_PREFIX + 'current_user');
+    window.dispatchEvent(new Event('ue-auth-change'));
+    if (!window.location.pathname.includes('/login')) {
+      window.location.href = '/login?deactivated=1';
+    }
+    return false;
+  }
+
+  return true;
+}
+
 export async function syncWithCloudDatabase(): Promise<boolean> {
   if (typeof window === 'undefined') return false;
   try {
@@ -1903,6 +2007,14 @@ export async function syncWithCloudDatabase(): Promise<boolean> {
 
     const remotePayload = json.data.data || json.data;
     let changed = false;
+
+    // Track all deleted IDs so deletions are permanent across all devices!
+    const remoteDeleted: string[] = Array.isArray(remotePayload.deleted_ids) ? remotePayload.deleted_ids : [];
+    const localDeleted: string[] = getStored<string[]>('deleted_ids', []);
+    const allDeleted = new Set<string>([...localDeleted, ...remoteDeleted]);
+    if (allDeleted.size > localDeleted.length) {
+      localStorage.setItem(STORAGE_KEY_PREFIX + 'deleted_ids', JSON.stringify(Array.from(allDeleted)));
+    }
 
     // Keys to merge
     const MERGE_ARRAY_KEYS = [
@@ -1918,14 +2030,22 @@ export async function syncWithCloudDatabase(): Promise<boolean> {
 
     for (const key of MERGE_ARRAY_KEYS) {
       const remoteList = remotePayload[key] || remotePayload[STORAGE_KEY_PREFIX + key];
-      if (Array.isArray(remoteList) && remoteList.length > 0) {
-        const localList = getStored<any[]>(key, []);
-        const itemMap = new Map();
-        localList.forEach((item) => { if (item?.id) itemMap.set(item.id, item); });
+      const localList = getStored<any[]>(key, []);
+      const itemMap = new Map();
 
+      // 1. Keep local items, BUT strip anything that was deleted!
+      localList.forEach((item) => {
+        if (item?.id && !allDeleted.has(item.id)) {
+          itemMap.set(item.id, item);
+        } else if (item?.id && allDeleted.has(item.id)) {
+          changed = true;
+        }
+      });
+
+      if (Array.isArray(remoteList) && remoteList.length > 0) {
         let addedOrUpdated = false;
         remoteList.forEach((remoteItem) => {
-          if (!remoteItem?.id) return;
+          if (!remoteItem?.id || allDeleted.has(remoteItem.id)) return;
           const localItem = itemMap.get(remoteItem.id);
           if (!localItem) {
             itemMap.set(remoteItem.id, remoteItem);
@@ -1947,7 +2067,9 @@ export async function syncWithCloudDatabase(): Promise<boolean> {
             ).getTime();
             if (
               remoteTime > localTime ||
-              (remoteItem.status === 'submitted' && localItem.status === 'not_submitted')
+              (remoteItem.status === 'submitted' && localItem.status === 'not_submitted') ||
+              // If status or is_active changed remotely, honor remote state!
+              (remoteItem.is_active !== undefined && remoteItem.is_active !== localItem.is_active)
             ) {
               itemMap.set(remoteItem.id, { ...localItem, ...remoteItem });
               addedOrUpdated = true;
@@ -1955,11 +2077,14 @@ export async function syncWithCloudDatabase(): Promise<boolean> {
           }
         });
 
-        if (addedOrUpdated) {
+        if (addedOrUpdated || changed) {
           const merged = Array.from(itemMap.values());
           localStorage.setItem(STORAGE_KEY_PREFIX + key, JSON.stringify(merged));
           changed = true;
         }
+      } else if (changed) {
+        const merged = Array.from(itemMap.values());
+        localStorage.setItem(STORAGE_KEY_PREFIX + key, JSON.stringify(merged));
       }
     }
 
@@ -1967,6 +2092,10 @@ export async function syncWithCloudDatabase(): Promise<boolean> {
       window.dispatchEvent(new Event('ue-courses-change'));
       window.dispatchEvent(new Event('storage'));
     }
+
+    // Immediately kick out any user if their account was stopped or deleted!
+    validateCurrentSession();
+
     return true;
   } catch {
     return false;

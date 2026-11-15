@@ -13,8 +13,12 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [deactivatedNotice, setDeactivatedNotice] = useState(false);
 
   useEffect(() => {
+    if (typeof window !== 'undefined' && window.location.search.includes('deactivated=1')) {
+      setDeactivatedNotice(true);
+    }
     // Ensure all fresh faculty accounts created in Admin are synced from cloud
     syncWithCloudDatabase();
 
@@ -144,20 +148,20 @@ export default function LoginPage() {
     const profiles = getProfiles();
     let target = profiles[0];
     if (role === 'adil') {
-      target = profiles.find((p) => p.email === 'adil@ue.edu.pk' || p.id === 'user-admin-adil') || {
-        id: 'user-admin-adil',
-        email: 'adil@ue.edu.pk',
-        full_name: 'Muhammad Adil (Admin)',
+      target = profiles.find((p) => p.email === 'drkashif@ue.edu.pk' || p.id === 'user-admin-kashif' || p.role === 'admin') || {
+        id: 'user-admin-kashif',
+        email: 'drkashif@ue.edu.pk',
+        full_name: 'Dr. Kashif (Admin)',
         role: 'admin',
-        password: 'adil123',
-        designation: 'Campus Administrator / Full Access',
+        password: 'kashif123',
+        designation: 'Campus Director / Head of Department',
         department: 'UE Business School',
         phone: '+92 300 1234567',
         is_active: true,
         created_at: new Date().toISOString(),
       };
-      setEmail('adil');
-      setPassword('adil123');
+      setEmail('drkashif');
+      setPassword('kashif123');
     } else if (role === 'admin') {
       target = profiles.find((p) => p.role === 'admin') || profiles[0];
       setEmail(target.email);
@@ -199,6 +203,12 @@ export default function LoginPage() {
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md px-4">
         <div className="bg-white/95 backdrop-blur-md py-8 px-6 shadow-2xl rounded-2xl sm:px-10 border border-white/20">
           <form className="space-y-5" onSubmit={handleLogin}>
+            {deactivatedNotice && (
+              <div className="p-3.5 bg-rose-50 border border-rose-300 rounded-xl flex items-center gap-2.5 text-xs font-semibold text-rose-800 shadow-sm animate-in fade-in">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span>⛔ Aapka account Admin ne Deactivate ya Delete kar diya hai. Access blocked.</span>
+              </div>
+            )}
             {error && (
               <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg flex items-center gap-2 text-xs text-rose-700">
                 <AlertCircle className="w-4 h-4 shrink-0" />
