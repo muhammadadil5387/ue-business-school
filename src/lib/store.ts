@@ -127,29 +127,59 @@ export function switchRole(role: 'admin' | 'teacher'): Profile {
 // -----------------------------------------------------------------------------
 export function getProfiles(): Profile[] {
   let stored = getStored<Profile[]>('profiles', INITIAL_PROFILES);
-  // Ensure the adil admin account is present with active admin role and password adil123
-  let adilProfile = stored.find(
+
+  // 1. Upgrade any old Adil admin account to Dr. Kashif as requested
+  let profileChanged = false;
+  stored = stored.map((p) => {
+    if (p.role === 'admin' && (p.id === 'user-admin-adil' || p.full_name?.toLowerCase().includes('adil'))) {
+      profileChanged = true;
+      return {
+        ...p,
+        id: 'user-admin-kashif',
+        full_name: 'Dr. Kashif',
+        email: 'drkashif@ue.edu.pk',
+        password: 'kashif123',
+        designation: 'Campus Director / Head of Department',
+        is_active: true,
+      };
+    }
+    return p;
+  });
+
+  // Ensure Dr. Kashif admin account is present with active admin role and password kashif123
+  let kashifProfile = stored.find(
     (p) =>
-      p.email?.toLowerCase() === 'adil@ue.edu.pk' ||
-      p.email?.toLowerCase() === 'adil123@gmail.com' ||
-      p.id === 'user-admin-adil'
+      p.email?.toLowerCase() === 'drkashif@ue.edu.pk' ||
+      p.email?.toLowerCase() === 'kashif@ue.edu.pk' ||
+      p.id === 'user-admin-kashif' ||
+      p.full_name?.toLowerCase() === 'dr. kashif'
   );
-  if (!adilProfile) {
-    const newAdil: Profile = {
-      id: 'user-admin-adil',
-      email: 'adil@ue.edu.pk',
-      full_name: 'Muhammad Adil',
+  if (!kashifProfile) {
+    const newKashif: Profile = {
+      id: 'user-admin-kashif',
+      email: 'drkashif@ue.edu.pk',
+      full_name: 'Dr. Kashif',
       role: 'admin',
-      password: 'adil123',
-      designation: 'Campus Administrator / Full Access',
+      password: 'kashif123',
+      designation: 'Campus Director / Head of Department',
       department: 'UE Business School',
       phone: '+92 300 1234567',
       is_active: true,
       created_at: new Date().toISOString(),
     };
-    stored = [newAdil, ...stored];
-    adilProfile = newAdil;
-    setStored('profiles', stored);
+    stored = [newKashif, ...stored];
+    kashifProfile = newKashif;
+    profileChanged = true;
+  }
+
+  if (profileChanged && typeof window !== 'undefined') {
+    localStorage.setItem(STORAGE_KEY_PREFIX + 'profiles', JSON.stringify(stored));
+    // Also update current active session if currently set to old admin
+    const curr = getStored<Profile | null>('current_user', null);
+    if (curr && curr.role === 'admin' && (curr.id === 'user-admin-adil' || curr.full_name?.toLowerCase().includes('adil'))) {
+      localStorage.setItem(STORAGE_KEY_PREFIX + 'current_user', JSON.stringify(kashifProfile));
+      window.dispatchEvent(new Event('ue-auth-change'));
+    }
   }
 
   // Ensure adil@gmail.com teacher account exists
@@ -256,16 +286,31 @@ export function getTeachers(): Profile[] {
 
 export function createFaculty(faculty: Omit<Profile, 'id' | 'created_at'>): Profile {
   const profiles = getProfiles();
+  const cleanEmail = (faculty.email || '').trim().toLowerCase();
+  const cleanPassword = (faculty.password || '').trim() || '1234';
+
   const newProfile: Profile = {
     ...faculty,
+    email: cleanEmail,
+    password: cleanPassword,
     id: `user-faculty-${Date.now()}`,
     created_at: new Date().toISOString(),
   };
-  const updated = [newProfile, ...profiles];
+
+  // Prepend new profile and filter any duplicates
+  const updated = [newProfile, ...profiles.filter((p) => p.email?.toLowerCase() !== cleanEmail)];
   setStored('profiles', updated);
+
+  // Instantly sync to cloud so the new user can log in immediately from any device!
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new Event('ue-auth-change'));
+    fetch('/api/backup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data: { profiles: updated } }),
+    }).catch(() => {});
   }
+
   logAudit('CREATE_FACULTY', 'profile', newProfile.id, {
     name: newProfile.full_name,
     email: newProfile.email,

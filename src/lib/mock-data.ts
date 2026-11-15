@@ -16,12 +16,12 @@ import {
 
 export const INITIAL_PROFILES: Profile[] = [
   {
-    id: 'user-admin-adil',
-    email: 'adil@ue.edu.pk',
-    full_name: 'Muhammad Adil',
+    id: 'user-admin-kashif',
+    email: 'drkashif@ue.edu.pk',
+    full_name: 'Dr. Kashif',
     role: 'admin',
-    password: 'adil123',
-    designation: 'Campus Administrator / Full Access',
+    password: 'kashif123',
+    designation: 'Campus Director / Head of Department',
     department: 'UE Business School',
     phone: '+92 300 1234567',
     is_active: true,
