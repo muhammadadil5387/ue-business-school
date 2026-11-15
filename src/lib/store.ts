@@ -2097,32 +2097,30 @@ export async function syncWithCloudDatabase(): Promise<boolean> {
               localItem.created_at ||
               0
             ).getTime();
-            let mergedItem = { ...localItem, ...remoteItem };
-            if (key === 'academic_files') {
-              const localLen = (localItem.file_data || '').length;
-              const remoteLen = (remoteItem.file_data || '').length;
-              if (localLen > remoteLen) {
-                mergedItem.file_data = localItem.file_data;
+            if (remoteTime > localTime) {
+              // Remote is strictly newer
+              let mergedItem = { ...localItem, ...remoteItem };
+              if (key === 'academic_files') {
+                const localLen = (localItem.file_data || '').length;
+                const remoteLen = (remoteItem.file_data || '').length;
+                if (localLen > remoteLen) {
+                  mergedItem.file_data = localItem.file_data;
+                }
               }
-            }
-
-            if (
-              remoteTime > localTime ||
-              (remoteItem.status === 'submitted' && localItem.status === 'not_submitted') ||
-              // If status or is_active changed remotely, honor remote state!
-              (remoteItem.is_active !== undefined && remoteItem.is_active !== localItem.is_active) ||
-              // If profile fields (password, name, designation, etc.) changed remotely
-              (key === 'profiles' && (
-                remoteItem.password !== localItem.password ||
-                remoteItem.full_name !== localItem.full_name ||
-                remoteItem.email !== localItem.email ||
-                remoteItem.designation !== localItem.designation ||
-                remoteItem.role !== localItem.role
-              )) ||
-              (key === 'academic_files' && (remoteItem.file_data || '').length > (localItem.file_data || '').length)
-            ) {
               itemMap.set(remoteItem.id, mergedItem);
               addedOrUpdated = true;
+            } else {
+              // Local is newer or equal: preserve local state (including is_active, password, etc.)
+              let mergedItem = { ...remoteItem, ...localItem };
+              if (key === 'academic_files') {
+                const localLen = (localItem.file_data || '').length;
+                const remoteLen = (remoteItem.file_data || '').length;
+                if (remoteLen > localLen) {
+                  mergedItem.file_data = remoteItem.file_data;
+                  itemMap.set(remoteItem.id, mergedItem);
+                  addedOrUpdated = true;
+                }
+              }
             }
           }
         });

@@ -77,18 +77,53 @@ export default function AdminFinalCategoryFilesPage({
   const [showReviewModal, setShowReviewModal] = useState(false);
 
   const refresh = () => {
-    if (!teacherId || !courseId || !categoryId) return;
-    const profiles = getProfiles();
-    setTeacher(profiles.find((p) => p.id === teacherId) || null);
+    try {
+      const profiles = getProfiles();
+      const t = profiles.find((p) => p.id === teacherId) || null;
+      setTeacher(t);
 
-    const c = getTeacherCourseById(courseId);
-    setCourse(c || null);
+      let c = courseId ? getTeacherCourseById(courseId) : undefined;
+      if (!c && courseId) {
+        const allCourses = getStored<TeacherCourse[]>('teacher_courses', []);
+        c = allCourses.find((item) => item.id === courseId);
+      }
+      if (!c) {
+        c = {
+          id: courseId || 'course-default',
+          teacher_id: teacherId || 'teacher',
+          subject_code: 'UE-BS',
+          subject_name: 'Academic Course',
+          program: 'BBA',
+          semester_number: 1,
+          class_section: 'A',
+          academic_year: year || '2026',
+          term: (term as any) || 'Fall',
+          created_at: new Date().toISOString(),
+        };
+      }
+      setCourse(c);
 
-    const cats = getAcademicCategories(courseId, 'final');
-    const cat = cats.find((item) => item.id === categoryId) || null;
-    setCategory(cat);
+      const cats = courseId ? getAcademicCategories(courseId, 'final') : [];
+      let cat = cats.find((item) => item.id === categoryId) || null;
+      if (!cat) {
+        cat = {
+          id: categoryId || 'cat-final-default',
+          teacher_course_id: courseId || 'course-default',
+          section: 'final',
+          name: 'Final Examination Record',
+          is_custom: false,
+          display_order: 0,
+          created_at: new Date().toISOString(),
+        };
+      }
+      setCategory(cat);
 
-    setFiles(getAcademicFiles(categoryId));
+      if (categoryId) {
+        setFiles(getAcademicFiles(categoryId));
+      }
+    } catch (err) {
+      console.warn('Error refreshing admin final files page:', err);
+    }
   };
 
   useEffect(() => {
@@ -272,7 +307,7 @@ export default function AdminFinalCategoryFilesPage({
                         <div className="flex items-center gap-2">
                           <FileText className="w-4 h-4 text-ue-maroon shrink-0" />
                           <div>
-                            <p className="font-bold text-slate-800">{file.original_name}</p>
+                            <p className="font-bold text-slate-800">{file.original_name || file.file_name || 'Academic File'}</p>
                             <p className="text-[10px] text-slate-400">{file.mime_type || 'document'}</p>
                           </div>
                         </div>
@@ -385,7 +420,7 @@ export default function AdminFinalCategoryFilesPage({
             <form onSubmit={handleSubmitReview} className="p-5 space-y-4">
               <div>
                 <p className="text-xs text-slate-500">File being reviewed:</p>
-                <p className="text-xs font-bold text-slate-800">{activeFileForReview.original_name}</p>
+                <p className="text-xs font-bold text-slate-800">{activeFileForReview.original_name || activeFileForReview.file_name || 'Academic File'}</p>
               </div>
 
               <div>
