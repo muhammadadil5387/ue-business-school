@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Plus, Trash2, FolderOpen, AlertCircle, X } from 'lucide-react';
+import { Plus, Trash2, FolderOpen, AlertCircle, X, Printer } from 'lucide-react';
+import { printSemesterAllCoursesPortfolio } from '@/lib/coursePortfolioPrinter';
 import {
   getProfiles,
   getTeacherCourses,
@@ -111,17 +112,36 @@ export default function TermCoursesPage({ params }: PageProps) {
 
       <Breadcrumb items={breadcrumbs} />
 
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold text-ue-navy">{term} {year} — Courses</h1>
           <p className="text-xs text-slate-500 mt-0.5">{teacher?.full_name}</p>
         </div>
-        <button
-          onClick={() => setShowModal(true)}
-          className="flex items-center gap-1.5 bg-ue-maroon text-white text-xs font-semibold px-3 py-2 rounded-lg hover:bg-red-900 transition"
-        >
-          <Plus className="w-3.5 h-3.5" /> Add Course
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          {courses.length > 0 && (
+            <button
+              onClick={() => {
+                printSemesterAllCoursesPortfolio({
+                  teacher: teacher,
+                  academicYear: year,
+                  term: term,
+                  courses: courses,
+                });
+              }}
+              className="flex items-center gap-1.5 bg-ue-navy text-white text-xs font-semibold px-3 py-2 rounded-lg hover:bg-blue-900 transition shadow-xs"
+              title="Print Complete Semester Academic Dossier for all subjects"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              <span>Print All Subjects Dossier ({courses.length})</span>
+            </button>
+          )}
+          <button
+            onClick={() => setShowModal(true)}
+            className="flex items-center gap-1.5 bg-ue-maroon text-white text-xs font-semibold px-3 py-2 rounded-lg hover:bg-red-900 transition"
+          >
+            <Plus className="w-3.5 h-3.5" /> Add Course
+          </button>
+        </div>
       </div>
 
       {courses.length === 0 ? (

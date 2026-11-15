@@ -4,7 +4,8 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { getCurrentUser, getTeacherCourses, createTeacherCourse, getSubjects, getPrograms } from '@/lib/store';
 import { TeacherCourse, AcademicTerm, Subject, Program } from '@/lib/types';
-import { Search, BookOpen, Check, Sparkles } from 'lucide-react';
+import { Search, BookOpen, Check, Sparkles, Printer, Plus } from 'lucide-react';
+import { printSemesterAllCoursesPortfolio } from '@/lib/coursePortfolioPrinter';
 
 interface PageProps {
   params: { year: string; term: string };
@@ -189,19 +190,36 @@ export default function TermCoursesPage({ params }: PageProps) {
           <h1 className="text-2xl font-bold text-slate-800">{term} {year} — Courses</h1>
           <p className="text-slate-500 text-sm mt-1">{courses.length} course{courses.length !== 1 ? 's' : ''} this term</p>
         </div>
-        <button
-          onClick={() => {
-            setSelectedCatalogId('');
-            setCatalogSearch('');
-            setShowModal(true);
-          }}
-          className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors shadow-sm"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          Add Course
-        </button>
+        <div className="flex flex-wrap items-center gap-2.5">
+          {courses.length > 0 && (
+            <button
+              onClick={() => {
+                printSemesterAllCoursesPortfolio({
+                  teacher: currentUser,
+                  academicYear: year,
+                  term: term,
+                  courses: courses,
+                });
+              }}
+              className="inline-flex items-center gap-2 bg-ue-navy hover:bg-blue-900 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors shadow-sm"
+              title="Print Complete Semester Academic Dossier for all subjects"
+            >
+              <Printer className="h-4 w-4" />
+              <span>Print All Subjects Dossier ({courses.length})</span>
+            </button>
+          )}
+          <button
+            onClick={() => {
+              setSelectedCatalogId('');
+              setCatalogSearch('');
+              setShowModal(true);
+            }}
+            className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors shadow-sm"
+          >
+            <Plus className="h-4 w-4" />
+            Add Course
+          </button>
+        </div>
       </div>
 
       {courses.length === 0 ? (
