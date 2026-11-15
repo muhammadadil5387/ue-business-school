@@ -269,8 +269,9 @@ export function toggleFacultyStatus(id: string): void {
     console.warn('Dr. Kashif (Primary Admin) cannot be deactivated.');
     return;
   }
+  const now = new Date().toISOString();
   const updated = profiles.map((p) =>
-    p.id === id ? { ...p, is_active: !p.is_active } : p
+    p.id === id ? { ...p, is_active: !p.is_active, updated_at: now } : p
   );
   setStored('profiles', updated);
   logAudit('TOGGLE_FACULTY_STATUS', 'profile', id, {});
@@ -278,17 +279,25 @@ export function toggleFacultyStatus(id: string): void {
   // If currently active user was just stopped/deactivated, kick them out immediately!
   const updatedTarget = updated.find((p) => p.id === id);
   const current = getCurrentUser();
-  if (current && updatedTarget && !updatedTarget.is_active && (current.id === id || current.email?.toLowerCase() === updatedTarget.email?.toLowerCase())) {
-    localStorage.removeItem(STORAGE_KEY_PREFIX + 'current_user');
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new Event('ue-auth-change'));
-      window.location.href = '/login?deactivated=1';
+  if (current && updatedTarget && (current.id === id || current.email?.toLowerCase() === updatedTarget.email?.toLowerCase())) {
+    if (!updatedTarget.is_active) {
+      localStorage.removeItem(STORAGE_KEY_PREFIX + 'current_user');
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('ue-auth-change'));
+        window.location.href = '/login?deactivated=1';
+      }
+    } else {
+      localStorage.setItem(STORAGE_KEY_PREFIX + 'current_user', JSON.stringify(updatedTarget));
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('ue-auth-change'));
+      }
     }
   }
 
-  // Push status immediately to cloud so other devices block this user right away!
+  // Push status immediately to cloud so other devices update this user right away!
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new Event('ue-auth-change'));
+    window.dispatchEvent(new Event('storage'));
     fetch('/api/backup', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1227,33 +1236,58 @@ export function updateAcademicFileStatus(
 ): void {
   const files = getStored<AcademicFile[]>('academic_files', []);
   const currentUser = getCurrentUser();
-  setStored(
-    'academic_files',
-    files.map((f) =>
-      f.id === id
-        ? {
-            ...f,
-            status,
-            admin_feedback: feedback || f.admin_feedback,
-            reviewed_by: currentUser?.full_name,
-            reviewed_at: new Date().toISOString(),
-          }
-        : f
-    )
+  const now = new Date().toISOString();
+  const updated = (files || []).map((f) =>
+    f && f.id === id
+      ? {
+          ...f,
+          status,
+          admin_feedback: feedback !== undefined ? feedback : f.admin_feedback,
+          reviewed_by: currentUser?.full_name,
+          reviewed_at: now,
+          updated_at: now,
+        }
+      : f
   );
+  setStored('academic_files', updated);
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('ue-courses-change'));
+    window.dispatchEvent(new Event('storage'));
+    fetch('/api/backup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        data: {
+          academic_files: updated,
+        },
+      }),
+    }).catch(() => {});
+  }
   logAudit('UPDATE_FILE_STATUS', 'academic_file', id, { status, feedback });
 }
 
 export function submitCategoryFiles(categoryId: string, teacherCourseId: string): void {
   const files = getStored<AcademicFile[]>('academic_files', []);
-  setStored(
-    'academic_files',
-    files.map((f) =>
-      f.category_id === categoryId && f.teacher_course_id === teacherCourseId && f.status === 'not_submitted'
-        ? { ...f, status: 'submitted' as AcademicFileStatus }
-        : f
-    )
+  const now = new Date().toISOString();
+  const updated = (files || []).map((f) =>
+    f && f.category_id === categoryId && f.teacher_course_id === teacherCourseId && f.status === 'not_submitted'
+      ? { ...f, status: 'submitted' as AcademicFileStatus, updated_at: now }
+      : f
   );
+  setStored('academic_files', updated);
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('ue-courses-change'));
+    window.dispatchEvent(new Event('storage'));
+    fetch('/api/backup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        data: {
+          academic_files: updated,
+        },
+      }),
+    }).catch(() => {});
+  }
   logAudit('SUBMIT_CATEGORY_FILES', 'academic_category', categoryId, {});
 }
 

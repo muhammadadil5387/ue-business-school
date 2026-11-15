@@ -32,6 +32,7 @@ export default function LoginPage() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setDeactivatedNotice(false);
     setIsLoading(true);
 
     try {
