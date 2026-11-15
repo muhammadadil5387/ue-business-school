@@ -54,6 +54,59 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
   const [feedback, setFeedback] = useState<string>(file?.admin_feedback || '');
   const [isSubmittingModeration, setIsSubmittingModeration] = useState(false);
   const [modSuccess, setModSuccess] = useState(false);
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+  const [isPdfValid, setIsPdfValid] = useState<boolean>(true);
+
+  useEffect(() => {
+    if (!file?.file_data || typeof window === 'undefined') {
+      setBlobUrl(null);
+      setIsPdfValid(false);
+      return;
+    }
+
+    try {
+      if (file.file_data.startsWith('blob:')) {
+        setBlobUrl(file.file_data);
+        setIsPdfValid(true);
+        return;
+      }
+
+      if (file.file_data.startsWith('data:')) {
+        const parts = file.file_data.split(',');
+        if (parts.length < 2) {
+          setIsPdfValid(false);
+          return;
+        }
+
+        const rawBase64 = parts[1].trim();
+        // Check if rawBase64 is a valid PDF (starts with JVBERi in base64)
+        if (rawBase64.length < 40 || (!rawBase64.startsWith('JVBERi') && !rawBase64.startsWith('/9j/') && !rawBase64.startsWith('iVBORw'))) {
+          // If corrupted or truncated, avoid Chrome gray "Failed to load" box
+          setIsPdfValid(false);
+          return;
+        }
+
+        const mimeMatch = parts[0].match(/:(.*?);/);
+        const detectedMime = mimeMatch ? mimeMatch[1] : (file.mime_type || 'application/pdf');
+        const binary = atob(rawBase64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) {
+          bytes[i] = binary.charCodeAt(i);
+        }
+        const blob = new Blob([bytes], { type: detectedMime });
+        const url = URL.createObjectURL(blob);
+        setBlobUrl(url);
+        setIsPdfValid(true);
+
+        return () => {
+          URL.revokeObjectURL(url);
+        };
+      }
+    } catch (err) {
+      console.warn('PDF blob creation error:', err);
+      setIsPdfValid(false);
+    }
+  }, [file]);
 
   if (!file) return null;
 
@@ -79,6 +132,16 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
 
   // Direct Download File (or PDF representation)
   const handleDownload = () => {
+    if (blobUrl) {
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      return;
+    }
+
     if (file.file_data && file.file_data.startsWith('data:')) {
       const a = document.createElement('a');
       a.href = file.file_data;
@@ -454,13 +517,45 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
             </div>
           ) : (
             /* PDF Preview */
-            file.file_data ? (
-              <div className="w-full h-full flex flex-col items-center flex-1">
-                <iframe
-                  src={file.file_data}
+            blobUrl && isPdfValid ? (
+              <div className="w-full h-full flex flex-col items-center flex-1 space-y-2.5">
+                <div className="w-full flex items-center justify-between px-3 py-1.5 bg-slate-100 rounded-lg border border-slate-200 text-xs shadow-sm">
+                  <div className="flex items-center gap-2 text-slate-700 font-medium truncate">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                    <span className="truncate">{fileName}</span>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <a
+                      href={blobUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-2.5 py-1 bg-white hover:bg-slate-50 border border-slate-300 rounded text-slate-700 font-semibold text-[11px] inline-flex items-center gap-1 shadow-sm transition"
+                    >
+                      <Eye className="w-3.5 h-3.5 text-slate-500" />
+                      Open Full Screen
+                    </a>
+                    <button
+                      type="button"
+                      onClick={handleDownload}
+                      className="px-2.5 py-1 bg-ue-navy hover:bg-ue-navy-light text-white rounded font-semibold text-[11px] inline-flex items-center gap-1 shadow-sm transition"
+                    >
+                      <Download className="w-3.5 h-3.5 text-white" />
+                      Download PDF
+                    </button>
+                  </div>
+                </div>
+
+                <object
+                  data={blobUrl}
+                  type="application/pdf"
                   className="w-full h-[62vh] rounded-xl border border-slate-300 shadow bg-white"
-                  title={fileName}
-                />
+                >
+                  <iframe
+                    src={blobUrl}
+                    className="w-full h-full rounded-xl border-none"
+                    title={fileName}
+                  />
+                </object>
               </div>
             ) : (
               <div className="w-full max-w-2xl bg-white rounded-xl shadow-lg border border-slate-300 p-8 flex flex-col space-y-6">
@@ -511,8 +606,16 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
                     </div>
                   </div>
 
-                  <div className="text-xs text-slate-600 bg-rose-50 border border-rose-200 p-3 rounded flex items-center justify-between">
-                    <span>Full PDF document ready for examination board review, printing, and download.</span>
+                  <div className="flex items-center justify-between p-3.5 bg-blue-50 border border-blue-200 rounded-lg">
+                    <span className="text-xs text-blue-900 font-medium">Click download to view or print the official PDF.</span>
+                    <button
+                      type="button"
+                      onClick={handleDownload}
+                      className="px-3.5 py-1.5 bg-ue-navy hover:bg-ue-navy-light text-white text-xs font-semibold rounded-lg shadow transition flex items-center gap-1.5"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      Download File
+                    </button>
                   </div>
                 </div>
               </div>
