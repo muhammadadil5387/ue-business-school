@@ -1188,10 +1188,21 @@ export function uploadAcademicFile(data: Omit<AcademicFile, 'id' | 'uploaded_at'
     uploaded_at: new Date().toISOString(),
     status: 'submitted',
   };
-  setStored('academic_files', [...files, newFile]);
+  const updated = [...files, newFile];
+  setStored('academic_files', updated);
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new Event('ue-courses-change'));
     window.dispatchEvent(new Event('storage'));
+
+    fetch('/api/backup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        data: {
+          academic_files: updated,
+        },
+      }),
+    }).catch(() => {});
   }
   logAudit('UPLOAD_ACADEMIC_FILE', 'academic_file', newFile.id, {
     file: newFile.original_name,
@@ -1909,14 +1920,7 @@ export function getAllStorageData(): Record<string, any> {
     const raw = localStorage.getItem(STORAGE_KEY_PREFIX + key);
     if (raw) {
       try {
-        let parsed = JSON.parse(raw);
-        if (key === 'academic_files' && Array.isArray(parsed)) {
-          // Keep network payload under 50KB to make portal 100x faster
-          parsed = parsed.map((f: any) => ({
-            ...f,
-            file_data: f?.file_data && f.file_data.length > 50000 ? f.file_data.substring(0, 10000) : f?.file_data,
-          }));
-        }
+        const parsed = JSON.parse(raw);
         backup.data[key] = parsed;
       } catch {
         backup.data[key] = raw;
@@ -2089,6 +2093,15 @@ export async function syncWithCloudDatabase(): Promise<boolean> {
               localItem.created_at ||
               0
             ).getTime();
+            let mergedItem = { ...localItem, ...remoteItem };
+            if (key === 'academic_files') {
+              const localLen = (localItem.file_data || '').length;
+              const remoteLen = (remoteItem.file_data || '').length;
+              if (localLen > remoteLen) {
+                mergedItem.file_data = localItem.file_data;
+              }
+            }
+
             if (
               remoteTime > localTime ||
               (remoteItem.status === 'submitted' && localItem.status === 'not_submitted') ||
@@ -2101,9 +2114,10 @@ export async function syncWithCloudDatabase(): Promise<boolean> {
                 remoteItem.email !== localItem.email ||
                 remoteItem.designation !== localItem.designation ||
                 remoteItem.role !== localItem.role
-              ))
+              )) ||
+              (key === 'academic_files' && (remoteItem.file_data || '').length > (localItem.file_data || '').length)
             ) {
-              itemMap.set(remoteItem.id, { ...localItem, ...remoteItem });
+              itemMap.set(remoteItem.id, mergedItem);
               addedOrUpdated = true;
             }
           }

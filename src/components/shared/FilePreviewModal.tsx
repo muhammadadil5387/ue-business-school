@@ -208,7 +208,12 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
       } catch (err: any) {
         console.warn('Document parse error:', err);
         if (isMounted) {
-          setParseError(err?.message || 'Could not parse document preview');
+          const msg = err?.message || '';
+          if (msg.includes('central directory') || msg.includes('zip') || msg.includes('corrupted')) {
+            setParseError('Ye file pehle incomplete save hui thi. Teacher se kahein dobara re-upload kar dein taake fresh complete file sync ho jaye, ya neeche Download dabayein.');
+          } else {
+            setParseError(msg || 'Could not parse document preview');
+          }
         }
       } finally {
         if (isMounted) {
