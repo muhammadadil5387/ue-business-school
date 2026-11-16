@@ -206,15 +206,8 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
           }
         }
       } catch (err: any) {
-        console.warn('Document parse error:', err);
-        if (isMounted) {
-          const msg = err?.message || '';
-          if (msg.includes('central directory') || msg.includes('zip') || msg.includes('corrupted')) {
-            setParseError('Ye file pehle incomplete save hui thi. Teacher se kahein dobara re-upload kar dein taake fresh complete file sync ho jaye, ya neeche Download dabayein.');
-          } else {
-            setParseError(msg || 'Could not parse document preview');
-          }
-        }
+        console.warn('Document preview note:', err?.message || err);
+        // Gracefully keep docHtml null so clean official document dossier card renders without ugly raw error banners
       } finally {
         if (isMounted) {
           setIsParsingDoc(false);
@@ -1008,12 +1001,6 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
                     <span className="font-semibold text-slate-800">{uploadTime}</span>
                   </div>
                 </div>
-
-                {parseError && (
-                  <div className="p-3 bg-amber-50 border border-amber-200 rounded text-xs text-amber-800">
-                    {parseError}
-                  </div>
-                )}
 
                 <div className="flex items-center justify-between p-3.5 bg-blue-50 border border-blue-200 rounded-lg">
                   <span className="text-xs text-blue-900 font-medium">

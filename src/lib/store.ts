@@ -212,7 +212,6 @@ export function getProfiles(): Profile[] {
     stored = [PRIMARY_KASHIF_ADMIN, ...stored.filter((p) => p.role !== 'admin')];
     if (typeof window !== 'undefined') {
       localStorage.setItem(STORAGE_KEY_PREFIX + 'profiles', JSON.stringify(stored));
-      localStorage.setItem(STORAGE_KEY_PREFIX + 'current_user', JSON.stringify(PRIMARY_KASHIF_ADMIN));
     }
   }
 

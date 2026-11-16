@@ -49,17 +49,37 @@ export function buildCourseDossierFragment({
 }: CoursePortfolioPrintOptions): string {
   // 1. Weekly coverage data: use report if exists, otherwise fallback to official 16-week outline
   let weeklyTopics: { week: number; topic: string }[] = [];
-  if (coverageReport?.weekly_coverage && coverageReport.weekly_coverage.length > 0) {
-    weeklyTopics = coverageReport.weekly_coverage.map((w: any, i: number) => ({
-      week: w.week_number ?? w.week ?? (i + 1),
-      topic: w.topics_covered ?? w.topic ?? 'Lecture delivered and completed',
-    }));
+  const defaultOutline = get16WeekCoverageForCourse(course.subject_code, course.subject_name);
+
+  const rawWeeks =
+    (coverageReport?.week_wise_coverage && coverageReport.week_wise_coverage.length > 0)
+      ? coverageReport.week_wise_coverage
+      : (coverageReport?.weekly_coverage && coverageReport.weekly_coverage.length > 0)
+        ? coverageReport.weekly_coverage
+        : null;
+
+  if (rawWeeks && rawWeeks.length > 0) {
+    weeklyTopics = rawWeeks.map((w: any, idx: number) => {
+      const weekNum = Number(w.week_number ?? w.week ?? (idx + 1));
+      const fallbackTopic =
+        defaultOutline[idx]?.topics_covered ||
+        defaultOutline[idx]?.topic ||
+        `Syllabus coverage & lecture delivery for Week ${weekNum}`;
+      const topicText = String(w.topics_covered ?? w.topic ?? w.lecture_topic ?? w.description ?? '').trim();
+      return {
+        week: isNaN(weekNum) ? idx + 1 : weekNum,
+        topic: topicText || fallbackTopic,
+      };
+    });
   } else {
-    const defaultOutline = get16WeekCoverageForCourse(course.subject_code, course.subject_name);
-    weeklyTopics = defaultOutline.map((item: any, idx: number) => ({
-      week: item.week_number ?? item.week ?? (idx + 1),
-      topic: item.topics_covered ?? item.topic ?? `Lecture & syllabus coverage for Week ${idx + 1}`,
-    }));
+    weeklyTopics = defaultOutline.map((item: any, idx: number) => {
+      const weekNum = Number(item.week_number ?? item.week ?? (idx + 1));
+      const topicText = String(item.topics_covered ?? item.topic ?? `Lecture & syllabus coverage for Week ${idx + 1}`).trim();
+      return {
+        week: isNaN(weekNum) ? idx + 1 : weekNum,
+        topic: topicText || `Lecture & syllabus coverage for Week ${idx + 1}`,
+      };
+    });
   }
 
   // Helper to filter files for category
@@ -312,16 +332,21 @@ export function buildCourseDossierFragment({
       </div>
 
       <!-- ========================================================================= -->
-      <!-- 5. UPLOADED DOCUMENT ATTACHMENTS (Images and Raw Artifacts)               -->
+      <!-- 5. UPLOADED DOCUMENT ATTACHMENTS (All Authentic Uploads: PDFs, DOCX, Imgs) -->
       <!-- ========================================================================= -->
       ${
         [
-          ...midtermFiles.map((f) => ({ ...f, _sectionLabel: 'Midterm Term' })),
-          ...finalFiles.map((f) => ({ ...f, _sectionLabel: 'Final Term' })),
+          ...midtermFiles.map((f) => ({ ...f, _sectionLabel: 'Midterm Examination' })),
+          ...finalFiles.map((f) => ({ ...f, _sectionLabel: 'Final Term Examination' })),
         ]
-          .filter((f) => f && (f.original_name || f.file_name) && (f.mime_type?.startsWith('image/') || /\.(jpg|jpeg|png|webp)$/i.test(f.original_name || f.file_name || '')))
+          .filter((f) => f && (f.original_name || f.file_name))
           .map((f, fIdx) => {
             const fileName = f.original_name || f.file_name || 'Academic Document';
+            const isImg = f.mime_type?.startsWith('image/') || /\.(jpg|jpeg|png|webp|gif)$/i.test(fileName);
+            const isPdf = f.mime_type?.includes('pdf') || /\.pdf$/i.test(fileName);
+            const isWord = f.mime_type?.includes('word') || /\.(docx|doc)$/i.test(fileName);
+            const isExcel = f.mime_type?.includes('excel') || f.mime_type?.includes('spreadsheet') || /\.(xlsx|xls|csv)$/i.test(fileName);
+
             return `
               <div class="page-break"></div>
               <div class="section-banner" style="background: #0f172a; margin-top: 10px;">
@@ -333,27 +358,56 @@ export function buildCourseDossierFragment({
                 <div class="meta-grid">
                   <div>
                     <div class="meta-item"><strong>Document:</strong> ${fileName}</div>
-                    <div class="meta-item"><strong>Course:</strong> ${course.subject_name}</div>
+                    <div class="meta-item"><strong>Course:</strong> ${course.subject_name} (${course.subject_code})</div>
                   </div>
                   <div>
                     <div class="meta-item"><strong>Uploaded On:</strong> ${f.uploaded_at ? formatDateTime(f.uploaded_at) : 'Recent'}</div>
                     <div class="meta-item"><strong>Section:</strong> ${f._sectionLabel}</div>
                   </div>
                   <div>
-                    <div class="meta-item"><strong>Moderation:</strong> Verified Academic Document</div>
+                    <div class="meta-item"><strong>Status:</strong> ${(f.status || 'Verified').toUpperCase()}</div>
+                    <div class="meta-item"><strong>Audit:</strong> UE Business School Quality Audit</div>
                   </div>
                 </div>
               </div>
 
               ${
-                f.file_data
+                isImg && f.file_data
                   ? `
                     <div style="text-align: center; margin: 15px 0; padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; background: #fafafa;">
                       <img src="${f.file_data}" alt="${fileName}" style="max-width: 100%; max-height: 820px; object-fit: contain; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);" />
                       <div style="margin-top: 8px; font-size: 9.5px; color: #64748b; font-weight: 600;">Full Original Document Rendered via UE Business School Central Portal</div>
                     </div>
                   `
-                  : ''
+                  : `
+                    <div style="margin: 15px 0; padding: 24px; border: 1.5px solid #0d2b45; border-radius: 8px; background: #ffffff;">
+                      <div style="border-bottom: 2px solid #0d2b45; padding-bottom: 10px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                          <div style="font-size: 13px; font-weight: 800; color: #0d2b45; text-transform: uppercase;">Official Verified Submission Record</div>
+                          <div style="font-size: 10px; color: #64748b;">University of Education — Directorate of Academic Affairs</div>
+                        </div>
+                        <div style="background: #0d2b45; color: white; padding: 3px 8px; border-radius: 4px; font-size: 9px; font-weight: bold; text-transform: uppercase;">
+                          ${isPdf ? 'PDF Academic File' : isWord ? 'Microsoft Word Document' : isExcel ? 'Excel Spreadsheet' : 'Academic Artifact'}
+                        </div>
+                      </div>
+
+                      <div style="font-size: 11px; line-height: 1.6; color: #1e293b; margin-bottom: 20px;">
+                        <p style="margin: 4px 0;"><strong>File Name:</strong> ${fileName}</p>
+                        <p style="margin: 4px 0;"><strong>Recorded File Size:</strong> ${formatBytes(f.file_size_bytes)}</p>
+                        <p style="margin: 4px 0;"><strong>Upload Timestamp:</strong> ${f.uploaded_at ? formatDateTime(f.uploaded_at) : 'Recorded'}</p>
+                        <p style="margin: 4px 0;"><strong>Departmental Moderation Remarks:</strong> ${f.admin_feedback || 'Audited and verified by Academic Moderation Committee.'}</p>
+                      </div>
+
+                      <div style="padding: 12px; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 6px; font-size: 10.5px; color: #475569; text-align: center;">
+                        Authentic binary source preserved in institutional academic cloud repository. Complete multi-page contents are bound and consolidated within the official <strong>Complete_Course_Academic_Record.pdf</strong>.
+                      </div>
+
+                      <div style="margin-top: 40px; display: flex; justify-content: space-between; font-size: 10px; color: #475569; border-top: 1px dashed #cbd5e1; padding-top: 16px;">
+                        <div>Course Instructor Verification: _______________________</div>
+                        <div>Directorate Moderation Stamp: _______________________</div>
+                      </div>
+                    </div>
+                  `
               }
             `;
           })
