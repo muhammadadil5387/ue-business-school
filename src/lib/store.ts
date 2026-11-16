@@ -108,7 +108,11 @@ export function getCurrentUser(): Profile | null {
 export function setCurrentUser(user: Profile | null): void {
   if (typeof window === 'undefined') return;
   try {
-    localStorage.setItem(STORAGE_KEY_PREFIX + 'current_user', JSON.stringify(user));
+    if (!user) {
+      localStorage.removeItem(STORAGE_KEY_PREFIX + 'current_user');
+    } else {
+      localStorage.setItem(STORAGE_KEY_PREFIX + 'current_user', JSON.stringify(user));
+    }
     window.dispatchEvent(new Event('ue-auth-change'));
   } catch (err) {
     console.error('Failed to save current user:', err);
@@ -138,51 +142,6 @@ export const PRIMARY_KASHIF_ADMIN: Profile = {
   is_active: true,
   created_at: '2026-08-01T08:00:00Z',
 };
-
-// Clean slate reset requested by user: Keep ONLY Dr. Kashif as Admin, wipe all other demo teachers & courses
-const CLEAN_SLATE_RESET_KEY = 'ue_clean_slate_dr_kashif_v2';
-if (typeof window !== 'undefined' && !localStorage.getItem(STORAGE_KEY_PREFIX + CLEAN_SLATE_RESET_KEY)) {
-  try {
-    localStorage.setItem(STORAGE_KEY_PREFIX + 'profiles', JSON.stringify([PRIMARY_KASHIF_ADMIN]));
-    localStorage.setItem(STORAGE_KEY_PREFIX + 'teacher_courses', JSON.stringify([]));
-    localStorage.setItem(STORAGE_KEY_PREFIX + 'academic_categories', JSON.stringify([]));
-    localStorage.setItem(STORAGE_KEY_PREFIX + 'academic_files', JSON.stringify([]));
-    localStorage.setItem(STORAGE_KEY_PREFIX + 'course_coverage_reports', JSON.stringify([]));
-    localStorage.setItem(STORAGE_KEY_PREFIX + 'teaching_activities', JSON.stringify([]));
-    localStorage.setItem(STORAGE_KEY_PREFIX + 'additional_activities', JSON.stringify([]));
-    localStorage.setItem(STORAGE_KEY_PREFIX + 'submissions', JSON.stringify([]));
-    localStorage.setItem(STORAGE_KEY_PREFIX + 'assignments', JSON.stringify([]));
-    localStorage.setItem(STORAGE_KEY_PREFIX + 'assignment_teachers', JSON.stringify([]));
-    localStorage.setItem(STORAGE_KEY_PREFIX + 'audit_logs', JSON.stringify([]));
-    localStorage.setItem(STORAGE_KEY_PREFIX + 'deleted_ids', JSON.stringify([]));
-    localStorage.setItem(STORAGE_KEY_PREFIX + 'current_user', JSON.stringify(PRIMARY_KASHIF_ADMIN));
-    localStorage.setItem(STORAGE_KEY_PREFIX + CLEAN_SLATE_RESET_KEY, 'done');
-
-    fetch('/api/backup', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        reset_to_kashif: true,
-        data: {
-          profiles: [PRIMARY_KASHIF_ADMIN],
-          teacher_courses: [],
-          academic_categories: [],
-          academic_files: [],
-          course_coverage_reports: [],
-          teaching_activities: [],
-          additional_activities: [],
-          submissions: [],
-          assignments: [],
-          assignment_teachers: [],
-          audit_logs: [],
-          deleted_ids: [],
-        },
-      }),
-    }).catch(() => {});
-  } catch {
-    // Ignore initial storage errors
-  }
-}
 
 export function getProfiles(): Profile[] {
   let stored = getStored<Profile[]>('profiles', [PRIMARY_KASHIF_ADMIN]);
@@ -246,7 +205,7 @@ export function createFaculty(faculty: Omit<Profile, 'id' | 'created_at'>): Prof
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ data: { profiles: updated } }),
-    }).catch(() => {});
+    }).catch(() => { });
   }
 
   logAudit('CREATE_FACULTY', 'profile', newProfile.id, {
@@ -301,7 +260,7 @@ export function toggleFacultyStatus(id: string): void {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ data: { profiles: updated } }),
-    }).catch(() => {});
+    }).catch(() => { });
   }
 }
 
@@ -327,7 +286,7 @@ export function updateFacultyPassword(id: string, newPassword: string): void {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ data: { profiles: updated } }),
-    }).catch(() => {});
+    }).catch(() => { });
   }
 }
 
@@ -356,7 +315,7 @@ export function updateFaculty(id: string, updates: Partial<Profile>): Profile | 
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ data: { profiles: updated } }),
-    }).catch(() => {});
+    }).catch(() => { });
   }
   logAudit('UPDATE_FACULTY', 'profile', id, updates);
   return updatedItem;
@@ -419,7 +378,7 @@ export function deleteFaculty(id: string): void {
           deleted_ids: newDeleted,
         },
       }),
-    }).catch(() => {});
+    }).catch(() => { });
   }
   logAudit('DELETE_FACULTY', 'profile', id, { name: target?.full_name, email: target?.email });
 }
@@ -612,7 +571,7 @@ export function getSubjects(): Subject[] {
     setStored('subjects', stored);
     return stored;
   }
-  
+
   // Guarantee ALL official initial curriculum subjects (BBA, BSBA, MBA) exist in store!
   const existingCodes = new Set(stored.map((s) => (s.code || '').replace(/\s+/g, '').toUpperCase()));
   const missing = INITIAL_SUBJECTS.filter(
@@ -1088,7 +1047,7 @@ export function deleteTeacherCourse(id: string): void {
           deleted_ids: newDeleted,
         },
       }),
-    }).catch(() => {});
+    }).catch(() => { });
   }
   logAudit('DELETE_TEACHER_COURSE', 'teacher_course', id, {});
 }
@@ -1156,7 +1115,7 @@ export function deleteAcademicCategory(id: string): void {
           deleted_ids: newDeleted,
         },
       }),
-    }).catch(() => {});
+    }).catch(() => { });
   }
   logAudit('DELETE_CATEGORY', 'academic_category', id, {});
 }
@@ -1205,7 +1164,7 @@ export function uploadAcademicFile(data: Omit<AcademicFile, 'id' | 'uploaded_at'
           academic_files: updated,
         },
       }),
-    }).catch(() => {});
+    }).catch(() => { });
   }
   logAudit('UPLOAD_ACADEMIC_FILE', 'academic_file', newFile.id, {
     file: newFile.original_name,
@@ -1238,7 +1197,7 @@ export function deleteAcademicFile(id: string): void {
           deleted_ids: newDeleted,
         },
       }),
-    }).catch(() => {});
+    }).catch(() => { });
   }
   logAudit('DELETE_ACADEMIC_FILE', 'academic_file', id, {});
 }
@@ -1254,13 +1213,13 @@ export function updateAcademicFileStatus(
   const updated = (files || []).map((f) =>
     f && f.id === id
       ? {
-          ...f,
-          status,
-          admin_feedback: feedback !== undefined ? feedback : f.admin_feedback,
-          reviewed_by: currentUser?.full_name,
-          reviewed_at: now,
-          updated_at: now,
-        }
+        ...f,
+        status,
+        admin_feedback: feedback !== undefined ? feedback : f.admin_feedback,
+        reviewed_by: currentUser?.full_name,
+        reviewed_at: now,
+        updated_at: now,
+      }
       : f
   );
   setStored('academic_files', updated);
@@ -1275,7 +1234,7 @@ export function updateAcademicFileStatus(
           academic_files: updated,
         },
       }),
-    }).catch(() => {});
+    }).catch(() => { });
   }
   logAudit('UPDATE_FILE_STATUS', 'academic_file', id, { status, feedback });
 }
@@ -1300,7 +1259,7 @@ export function submitCategoryFiles(categoryId: string, teacherCourseId: string)
           academic_files: updated,
         },
       }),
-    }).catch(() => {});
+    }).catch(() => { });
   }
   logAudit('SUBMIT_CATEGORY_FILES', 'academic_category', categoryId, {});
 }
@@ -1357,12 +1316,12 @@ export function reviewCourseCoverageReport(
     reports.map((r) =>
       r.teacher_course_id === teacherCourseId
         ? {
-            ...r,
-            status,
-            admin_feedback: feedback,
-            reviewed_by: currentUser?.full_name,
-            reviewed_at: new Date().toISOString(),
-          }
+          ...r,
+          status,
+          admin_feedback: feedback,
+          reviewed_by: currentUser?.full_name,
+          reviewed_at: new Date().toISOString(),
+        }
         : r
     )
   );
@@ -1693,9 +1652,9 @@ export function getConsolidatedReportingRecords(filters?: {
       sourceModule: 'teaching_activity',
       categoryLabel: act.activity_type === 'assignment' ? 'Assignment'
         : act.activity_type === 'quiz' ? 'Quiz'
-        : act.activity_type === 'class_activity' ? 'Class Activity'
-        : act.activity_type === 'presentation' ? 'Presentation'
-        : 'Student Attendance',
+          : act.activity_type === 'class_activity' ? 'Class Activity'
+            : act.activity_type === 'presentation' ? 'Presentation'
+              : 'Student Attendance',
       subType: act.activity_type,
       title: act.title,
       teacherId: act.teacher_id,
@@ -1733,9 +1692,9 @@ export function getConsolidatedReportingRecords(filters?: {
       sourceModule: 'additional_activity',
       categoryLabel: act.activity_type === 'industry_visit' ? 'Industry Visit'
         : act.activity_type === 'workshop' ? 'Workshop'
-        : act.activity_type === 'seminar' ? 'Seminar'
-        : act.activity_type === 'event_organization' ? 'Event Organization'
-        : 'Other Academic Activity',
+          : act.activity_type === 'seminar' ? 'Seminar'
+            : act.activity_type === 'event_organization' ? 'Event Organization'
+              : 'Other Academic Activity',
       subType: act.activity_type,
       title: act.title,
       teacherId: act.teacher_id,
